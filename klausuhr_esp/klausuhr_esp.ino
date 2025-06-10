@@ -16,7 +16,7 @@
   Aufbau der Datei
   ────────────────
   1. Bibliotheken & globale Konstanteinstellungen
-  2. Initialisierung der NeoPixel‑Strips (17 Objekte)
+  2. Initialisierung der LED‑Strips (17 Objekte)
   3. Datentyp „State“ für aktuellen Programm‑Mode
   4. Hilfsfunktionen  (clearAll, showAll, drawDigit)
   5. Renderfunktionen (drawClock, drawCountdown, drawBonus)
@@ -32,7 +32,7 @@
 #include <DNSServer.h>
 #include <FS.h>
 #include <LittleFS.h>
-#include <Adafruit_NeoPixel.h>
+#include <FastLED.h>
 #include "font7seg.h"
 #include <time.h>
 #include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
@@ -63,7 +63,8 @@ constexpr int  DST_OFFSET = 3600;    // Sekunden für Sommerzeit
 const char*    NTP_POOL[] = { "de.pool.ntp.org", "pool.ntp.org", "time.nist.gov" };
 
 // ─────────────────────────── LED‑Konstanten ───────────────────────────
-#define NEO_TYPE   (NEO_GRB + NEO_KHZ800)   // WS2812B Timing & Farbreihenfolge
+#define LED_TYPE    WS2812B                 // LED-Typ für FastLED
+#define COLOR_ORDER GRB
 #define BRIGHTNESS 48                       // Grundhelligkeit 0‑255 ≈ 20 %
 const unsigned long LED_TEST_DURATION  = 120000;  // 2 Minuten in Millisekunden
 const unsigned long LED_TEST_INTERVAL  = 1000;    // Farbwechsel alle Sekunde
@@ -86,25 +87,12 @@ const uint8_t PIN_C[5] = { 13, 12, 14, 27, 26 };  // Clock
 const uint8_t PIN_BAR_TOP = 33;                   // Ladebalken oben (40 LED)
 const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
 
-// ────────────────────────── NeoPixel‑Objekte ──────────────────────────
-// Fünf parallele Strips für jeden Anzeige‑Bereich erzeugen
-Adafruit_NeoPixel timerStrips[5] = {
-  {NUM_TIMER_LED, PIN_T[0], NEO_TYPE}, {NUM_TIMER_LED, PIN_T[1], NEO_TYPE},
-  {NUM_TIMER_LED, PIN_T[2], NEO_TYPE}, {NUM_TIMER_LED, PIN_T[3], NEO_TYPE},
-  {NUM_TIMER_LED, PIN_T[4], NEO_TYPE}
-};
-Adafruit_NeoPixel nachStrips[5] = {
-  {NUM_NACH_LED,  PIN_N[0], NEO_TYPE}, {NUM_NACH_LED,  PIN_N[1], NEO_TYPE},
-  {NUM_NACH_LED,  PIN_N[2], NEO_TYPE}, {NUM_NACH_LED,  PIN_N[3], NEO_TYPE},
-  {NUM_NACH_LED,  PIN_N[4], NEO_TYPE}
-};
-Adafruit_NeoPixel clockStrips[5] = {
-  {NUM_CLOCK_LED, PIN_C[0], NEO_TYPE}, {NUM_CLOCK_LED, PIN_C[1], NEO_TYPE},
-  {NUM_CLOCK_LED, PIN_C[2], NEO_TYPE}, {NUM_CLOCK_LED, PIN_C[3], NEO_TYPE},
-  {NUM_CLOCK_LED, PIN_C[4], NEO_TYPE}
-};
-Adafruit_NeoPixel barTop(NUM_BAR_TOP, PIN_BAR_TOP, NEO_TYPE);
-Adafruit_NeoPixel barBot(NUM_BAR_BOT, PIN_BAR_BOT, NEO_TYPE);
+// ────────────────────────── LED-Arrays ──────────────────────────
+CRGB timerLeds[5][NUM_TIMER_LED];
+CRGB nachLeds[5][NUM_NACH_LED];
+CRGB clockLeds[5][NUM_CLOCK_LED];
+CRGB barTopLeds[NUM_BAR_TOP];
+CRGB barBotLeds[NUM_BAR_BOT];
 
 // ───────────────────────── Programm‑Zustand ───────────────────────────
 struct State {
@@ -128,30 +116,26 @@ bool     firstSyncAttempt  = true;    // steuert 1‑minütigen Retry
 // ───────────────────── Hilfsfunktionen für die LEDs ───────────────────
 // Löscht alle Strips (schwarz)
 inline void clearAll() {
-  for (auto& s : timerStrips)  s.clear();
-  for (auto& s : nachStrips)   s.clear();
-  for (auto& s : clockStrips)  s.clear();
-  barTop.clear(); barBot.clear();
+  for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, CRGB::Black);
+  for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, CRGB::Black);
+  for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, CRGB::Black);
+  fill_solid(barTopLeds, NUM_BAR_TOP, CRGB::Black);
+  fill_solid(barBotLeds, NUM_BAR_BOT, CRGB::Black);
 }
 
 // Zeigt alle Strips gleichzeitig an
 inline void showAll() {
-  for (auto& s : timerStrips)  s.show();
-  for (auto& s : nachStrips)   s.show();
-  for (auto& s : clockStrips)  s.show();
-  barTop.show(); barBot.show();
+  FastLED.show();
 }
 
 // Füllt alle Strips mit derselben Farbe
 inline void fillAll(uint8_t r, uint8_t g, uint8_t b) {
-  uint32_t c = timerStrips[0].Color(r, g, b);
-  for (auto& s : timerStrips)  s.fill(c);
-  c = nachStrips[0].Color(r, g, b);
-  for (auto& s : nachStrips)   s.fill(c);
-  c = clockStrips[0].Color(r, g, b);
-  for (auto& s : clockStrips)  s.fill(c);
-  barTop.fill(barTop.Color(r, g, b));
-  barBot.fill(barBot.Color(r, g, b));
+  CRGB col(r, g, b);
+  for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, col);
+  for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, col);
+  for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, col);
+  fill_solid(barTopLeds, NUM_BAR_TOP, col);
+  fill_solid(barBotLeds, NUM_BAR_BOT, col);
   showAll();
 }
 
@@ -205,14 +189,16 @@ bool syncTimeNow() {
 }
 
 // Ein Pixel unter Berücksichtigung der Strip-Richtung setzen
-inline void setPixel(Adafruit_NeoPixel& strip, uint16_t pos, bool reversed,
+template<size_t LEN>
+inline void setPixel(CRGB (&strip)[LEN], uint16_t pos, bool reversed,
                      uint8_t r, uint8_t g, uint8_t b) {
-  uint16_t idx = reversed ? strip.numPixels() - 1 - pos : pos;
-  strip.setPixelColor(idx, strip.Color(r, g, b));
+  uint16_t idx = reversed ? LEN - 1 - pos : pos;
+  if (idx < LEN) strip[idx] = CRGB(r, g, b);
 }
 
 // Zeichnet ein 3x5-Digit an gegebener Startspalte
-inline void drawDigit(Adafruit_NeoPixel* strips, uint16_t start, bool reversed,
+template<size_t LEN>
+inline void drawDigit(CRGB (&strips)[5][LEN], uint16_t start, bool reversed,
                       uint8_t digit, uint8_t r, uint8_t g, uint8_t b) {
   for (uint8_t row = 0; row < 5; ++row) {
     uint8_t bits = pgm_read_byte(&FONT_3x5[digit][row]);
@@ -225,7 +211,8 @@ inline void drawDigit(Adafruit_NeoPixel* strips, uint16_t start, bool reversed,
 }
 
 // Doppelpunkt zeichnen (Punkte in Zeile 2 und 4)
-inline void drawColon(Adafruit_NeoPixel* strips, uint16_t col, bool reversed,
+template<size_t LEN>
+inline void drawColon(CRGB (&strips)[5][LEN], uint16_t col, bool reversed,
                       uint8_t r, uint8_t g, uint8_t b) {
   const bool dots[5] = {false, true, false, true, false};
   for (uint8_t row = 0; row < 5; ++row) {
@@ -249,11 +236,11 @@ void drawClock() {
   struct tm t {}; time_t now = time(nullptr); localtime_r(&now, &t);
   uint8_t h = t.tm_hour, m = t.tm_min;
   // Stunden in Cyan, Minuten in Weiß
-  drawDigit(clockStrips, 0,  false, h / 10, 0, 255, 255);
-  drawDigit(clockStrips, 4,  false, h % 10, 0, 255, 255);
-  drawColon(clockStrips, 8,  false, 255, 255, 255);
-  drawDigit(clockStrips, 10, false, m / 10, 255, 255, 255);
-  drawDigit(clockStrips, 14, false, m % 10, 255, 255, 255);
+  drawDigit(clockLeds, 0,  false, h / 10, 0, 255, 255);
+  drawDigit(clockLeds, 4,  false, h % 10, 0, 255, 255);
+  drawColon(clockLeds, 8,  false, 255, 255, 255);
+  drawDigit(clockLeds, 10, false, m / 10, 255, 255, 255);
+  drawDigit(clockLeds, 14, false, m % 10, 255, 255, 255);
   showAll();
 }
 
@@ -276,27 +263,25 @@ void drawCountdown(time_t now) {
   uint8_t r = warn ? 255 : 255;
   uint8_t g = warn ? 0   : 255;
   uint8_t b = warn ? 0   : 255;
-  drawDigit(timerStrips, 0,  false, (totalMin / 100) % 10, r, g, b);
-  drawDigit(timerStrips, 4,  false, (totalMin / 10) % 10, r, g, b);
-  drawDigit(timerStrips, 8,  false, totalMin % 10, r, g, b);
-  drawColon(timerStrips, 12, false, r, g, b);
-  drawDigit(timerStrips, 14, false, s / 10, r, g, b);
-  drawDigit(timerStrips, 18, false, s % 10, r, g, b);
+  drawDigit(timerLeds, 0,  false, (totalMin / 100) % 10, r, g, b);
+  drawDigit(timerLeds, 4,  false, (totalMin / 10) % 10, r, g, b);
+  drawDigit(timerLeds, 8,  false, totalMin % 10, r, g, b);
+  drawColon(timerLeds, 12, false, r, g, b);
+  drawDigit(timerLeds, 14, false, s / 10, r, g, b);
+  drawDigit(timerLeds, 18, false, s % 10, r, g, b);
 
-  auto drawBar = [](Adafruit_NeoPixel& bar, uint16_t count, float prog) {
-    bar.clear();
+  auto drawBar = [](CRGB* bar, uint16_t count, float prog) {
+    fill_solid(bar, count, CRGB::Black);
     int fill = round(prog * count);
     for (int i = 0; i < fill; ++i) {
-      uint32_t c;
-      if (i >= fill - 2)      c = bar.Color(255, 0, 0);      // letzte 2 -> Rot
-      else if (i >= fill - 4) c = bar.Color(255, 255, 0);    // davor Gelb
-      else                    c = bar.Color(0, 255, 0);      // Rest Grün
-      bar.setPixelColor(i, c);
+      if (i >= fill - 2)      bar[i] = CRGB(255, 0, 0);   // letzte 2 -> Rot
+      else if (i >= fill - 4) bar[i] = CRGB(255, 255, 0); // davor Gelb
+      else                    bar[i] = CRGB(0, 255, 0);   // Rest Grün
     }
   };
 
-  drawBar(barTop, NUM_BAR_TOP, progress);
-  drawBar(barBot, NUM_BAR_BOT, progress);
+  drawBar(barTopLeds, NUM_BAR_TOP, progress);
+  drawBar(barBotLeds, NUM_BAR_BOT, progress);
   showAll();
 }
 
@@ -306,22 +291,22 @@ void drawBonusTop(time_t now) {
   if (rem < 0) rem = 0;
   uint16_t m = rem / 60;
   uint8_t r = 128, g = 0, b = 128;            // Lila
-  drawDigit(timerStrips, 0,  false, (m / 100) % 10, r, g, b);
-  drawDigit(timerStrips, 4,  false, (m / 10) % 10, r, g, b);
-  drawDigit(timerStrips, 8,  false, m % 10, r, g, b);
-  drawColon(timerStrips, 12, false, 0, 0, 0);
-  drawDigit(timerStrips, 14, false, 0, 0, 0, 0);
-  drawDigit(timerStrips, 18, false, 0, 0, 0, 0);
+  drawDigit(timerLeds, 0,  false, (m / 100) % 10, r, g, b);
+  drawDigit(timerLeds, 4,  false, (m / 10) % 10, r, g, b);
+  drawDigit(timerLeds, 8,  false, m % 10, r, g, b);
+  drawColon(timerLeds, 12, false, 0, 0, 0);
+  drawDigit(timerLeds, 14, false, 0, 0, 0, 0);
+  drawDigit(timerLeds, 18, false, 0, 0, 0, 0);
   float progress = 1.0f - rem / (float)state.bonusSec;
   int fillTop = round(progress * NUM_BAR_TOP);
   int fillBot = round(progress * NUM_BAR_BOT);
-  barTop.clear();
+  fill_solid(barTopLeds, NUM_BAR_TOP, CRGB::Black);
   for (int i = 0; i < fillTop; ++i) {
-    barTop.setPixelColor(i, barTop.Color(r, g, b));
+    barTopLeds[i] = CRGB(r, g, b);
   }
-  barBot.clear();
+  fill_solid(barBotLeds, NUM_BAR_BOT, CRGB::Black);
   for (int i = 0; i < fillBot; ++i) {
-    barBot.setPixelColor(i, barBot.Color(r, g, b));
+    barBotLeds[i] = CRGB(r, g, b);
   }
   showAll();
 }
@@ -331,9 +316,9 @@ void drawBonusBottom(time_t now) {
   if (rem < 0) rem = 0;
   uint16_t m = rem / 60;
   uint8_t r = 128, g = 0, b = 128;
-  drawDigit(nachStrips, 0, true, (m / 100) % 10, r, g, b);
-  drawDigit(nachStrips, 4, true, (m / 10) % 10, r, g, b);
-  drawDigit(nachStrips, 8, true, m % 10, r, g, b);
+  drawDigit(nachLeds, 0, true, (m / 100) % 10, r, g, b);
+  drawDigit(nachLeds, 4, true, (m / 10) % 10, r, g, b);
+  drawDigit(nachLeds, 8, true, m % 10, r, g, b);
   showAll();
 }
 
@@ -347,12 +332,16 @@ void setup() {
   esp_pm_lock_acquire(pm_lock_l0);
   
   // 2) LED‑Streifen initialisieren
-  auto initStrip = [](Adafruit_NeoPixel& s) { s.begin(); s.setBrightness(BRIGHTNESS); s.show(); };
-  for (auto& s : timerStrips)  initStrip(s);
-  for (auto& s : nachStrips)   initStrip(s);
-  for (auto& s : clockStrips)  initStrip(s);
-  initStrip(barTop);
-  initStrip(barBot);
+  FastLED.setBrightness(BRIGHTNESS);
+  for (int i = 0; i < 5; ++i) {
+    FastLED.addLeds<LED_TYPE, PIN_T[i], COLOR_ORDER>(timerLeds[i], NUM_TIMER_LED);
+    FastLED.addLeds<LED_TYPE, PIN_N[i], COLOR_ORDER>(nachLeds[i],  NUM_NACH_LED);
+    FastLED.addLeds<LED_TYPE, PIN_C[i], COLOR_ORDER>(clockLeds[i], NUM_CLOCK_LED);
+  }
+  FastLED.addLeds<LED_TYPE, PIN_BAR_TOP, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
+  FastLED.addLeds<LED_TYPE, PIN_BAR_BOT, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
+  clearAll();
+  FastLED.show();
 
   // 3) LittleFS einbinden (Web‑Dateien)
   if (!LittleFS.begin(true)) {
