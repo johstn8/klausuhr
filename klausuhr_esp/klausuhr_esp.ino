@@ -35,15 +35,19 @@
 #include <Adafruit_NeoPixel.h>
 #include "font7seg.h"
 #include <time.h>
+#include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
 
 // ───────────────────────────── WLAN & NTP ─────────────────────────────
+// Globaler Handle für No-Light-Sleep | Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website
+esp_pm_lock_handle_t pm_lock_l0;
+
 // Zugangsdaten für das Schul‑WLAN (Station‑Modus)
 const char* STA_SSID = "<YOUR_SSID>";   // ← hier SSID eintragen
 const char* STA_PASS = "<YOUR_PASS>";   // ← hier Passwort eintragen
 
 // Angaben für den Access‑Point, den der ESP selbst öffnet
-const char* AP_SSID  = "Exam Timer";
-const char* AP_PASS  = "ExamTimer123";
+const char* AP_SSID  = "KlausUhr";
+const char* AP_PASS  = "KlausUhr";
 
 WebServer server(80);          // synchroner HTTP‑Server
 DNSServer dns;                 // leitet jedes Host‑Label auf die Portal‑IP um
@@ -296,7 +300,11 @@ void setup() {
   Serial.begin(115200);
   delay(200);                       // Stabilisierung nach Reset
 
-  // 1) LED‑Streifen initialisieren
+  // 1) Erzeuge und aktiviere den Lock, der Light-Sleep komplett verhindert | Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website
+  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "no_light_sleep", &pm_lock_l0);
+  esp_pm_lock_acquire(pm_lock_l0);
+  
+  // 2) LED‑Streifen initialisieren
   auto initStrip = [](Adafruit_NeoPixel& s) { s.begin(); s.setBrightness(BRIGHTNESS); s.show(); };
   for (auto& s : timerStrips)  initStrip(s);
   for (auto& s : nachStrips)   initStrip(s);
@@ -304,25 +312,26 @@ void setup() {
   initStrip(barTop);
   initStrip(barBot);
 
-  // 2) LittleFS einbinden (Web‑Dateien)
+  // 3) LittleFS einbinden (Web‑Dateien)
   if (!LittleFS.begin(true)) {
     Serial.println(F("LittleFS Mount failed – stopping."));
     while (true) delay(200);
   }
 
-  // 3) WLAN Setup
+  // 4) WLAN Setup
   WiFi.mode(WIFI_AP_STA);
   WiFi.begin(STA_SSID, STA_PASS);                        // Verbindung zur Schule
   WiFi.softAPConfig(AP_IP, AP_IP, NETMASK);              // fixe AP‑Adresse
   WiFi.softAP(AP_SSID, AP_PASS, 6 /*Channel*/, 0 /*sichtbar*/, 4 /*max*/);
+  WiFi.setSleep(false);                                   // Fehlerbehebung: WLAN-Disconnection zu Geräten bei Aufruf von Webseiten
   WiFi.setTxPower(WIFI_POWER_19_5dBm);                   // volle Sendeleistung
   dns.start(53, "*", AP_IP);                            // alle Domains -> Captive‑Portal
   Serial.printf("AP bereit: SSID='%s'  IP=%s\n", AP_SSID, AP_IP.toString().c_str());
 
-  // 4) Zeit per NTP holen
+  // 5) Zeit per NTP holen
   configTime(GMT_OFFSET, DST_OFFSET, NTP_POOL[0], NTP_POOL[1], NTP_POOL[2]);
 
-  // 5) Web‑Routen
+  // 6) Web‑Routen
   server.on("/", HTTP_GET, [](){                      // Root → index.html liefern
     File f = LittleFS.open("/index.html", "r");
     server.streamFile(f, "text/html"); f.close();
