@@ -267,8 +267,16 @@ void drawBonusTop(time_t now) {
   drawDigit(timerStrips, 14, false, 0, 0, 0, 0);
   drawDigit(timerStrips, 18, false, 0, 0, 0, 0);
   float progress = 1.0f - rem / (float)state.bonusSec;
-  barTop.fill(barTop.Color(r, g, b), 0, progress * NUM_BAR_TOP);
-  barBot.fill(barBot.Color(r, g, b), 0, progress * NUM_BAR_BOT);
+  int fillTop = round(progress * NUM_BAR_TOP);
+  int fillBot = round(progress * NUM_BAR_BOT);
+  barTop.clear();
+  for (int i = 0; i < fillTop; ++i) {
+    barTop.setPixelColor(i, barTop.Color(r, g, b));
+  }
+  barBot.clear();
+  for (int i = 0; i < fillBot; ++i) {
+    barBot.setPixelColor(i, barBot.Color(r, g, b));
+  }
   showAll();
 }
 
