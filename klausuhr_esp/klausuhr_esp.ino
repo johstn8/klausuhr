@@ -351,13 +351,13 @@ void setup() {
   // 2) LED‑Streifen initialisieren
   FastLED.setBrightness(BRIGHTNESS);
   for (int i = 0; i < 5; ++i) {
-    FastLED.addLeds<LED_TYPE, PIN_T[i], COLOR_ORDER>(timerLeds[i], NUM_TIMER_LED);
-    FastLED.addLeds<LED_TYPE, PIN_N[i], COLOR_ORDER>(nachLeds[i],  NUM_NACH_LED);
-    FastLED.addLeds<LED_TYPE, PIN_C[i], COLOR_ORDER>(clockLeds[i], NUM_CLOCK_LED);
+    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(timerLeds[i], NUM_TIMER_LED).setPin(PIN_T[i]);
+    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(nachLeds[i],  NUM_NACH_LED).setPin(PIN_N[i]);
+    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(clockLeds[i], NUM_CLOCK_LED).setPin(PIN_C[i]);
   }
 #if USE_LOADING_BAR
-  FastLED.addLeds<LED_TYPE, PIN_BAR_TOP, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
-  FastLED.addLeds<LED_TYPE, PIN_BAR_BOT, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
+  FastLED.addLeds<LED_TYPE, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP).setPin(PIN_BAR_TOP);
+  FastLED.addLeds<LED_TYPE, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT).setPin(PIN_BAR_BOT);
 #endif
   clearAll();
   FastLED.show();
