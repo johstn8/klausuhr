@@ -18,7 +18,7 @@
   1. Bibliotheken & globale Konstanteinstellungen
   2. Initialisierung der NeoPixel‑Strips (17 Objekte)
   3. Datentyp „State“ für aktuellen Programm‑Mode
-  4. Hilfsfunktionen  (clearAll, showAll, draw7Seg)
+  4. Hilfsfunktionen  (clearAll, showAll, drawDigit)
   5. Renderfunktionen (drawClock, drawCountdown, drawBonus)
   6. setup()  ➜  Hardware‑Init, WiFi/AP, DNS, WebServer, NTP
   7. loop()   ➜  DNS + WebServer + Display‑Routine‑Dispatcher
@@ -33,6 +33,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <Adafruit_NeoPixel.h>
+#include "font7seg.h"
 #include <time.h>
 
 // ───────────────────────────── WLAN & NTP ─────────────────────────────
@@ -69,12 +70,16 @@ constexpr uint16_t NUM_CLOCK_LED = 17;   // je Digit der Uhrzeit
 constexpr uint16_t NUM_BAR_TOP   = 40;   // Ladebalken oben
 constexpr uint16_t NUM_BAR_BOT   = 39;   // Ladebalken unten
 
+// Prozentuale Schwellen
+constexpr uint8_t WARN_THRESHOLD_PCT  = 20;   // ab hier rote Darstellung
+constexpr uint8_t BLINK_LAST_PCT      = 5;    // letzten % blinken 1 Hz
+
 // GPIO‑Belegung für alle 17 Strips (ein Pin pro Strip)
 const uint8_t PIN_T[5] = {  2,  4, 16, 17,  5 };  // Timer
 const uint8_t PIN_N[5] = { 18, 19, 21, 22, 23 };  // Nachteil
-const uint8_t PIN_C[5] = { 12, 13, 14, 27, 26 };  // Clock
-const uint8_t PIN_BAR_TOP = 32;                   // Ladebalken oben
-const uint8_t PIN_BAR_BOT = 33;                   // Ladebalken unten
+const uint8_t PIN_C[5] = { 13, 12, 14, 27, 26 };  // Clock
+const uint8_t PIN_BAR_TOP = 33;                   // Ladebalken oben (40 LED)
+const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
 
 // ────────────────────────── NeoPixel‑Objekte ──────────────────────────
 // Fünf parallele Strips für jeden Anzeige‑Bereich erzeugen
@@ -157,33 +162,52 @@ inline void runLedTest() {
   fillAll(col[0], col[1], col[2]);
 }
 
-/*
-  draw7Seg(): Abstrakte Platzhalter‑Routine
-  ---------------------------------------
-  ▸ Wandelt die gegebene Ziffer (0‑9) in ein 7‑Segment‑Muster um und färbt sie.
-  ▸ Aktuell werden *alle* Pixel des übergebenen Strips einfärbt, weil die
-    exakte Segment‑Zuordnung noch nicht implementiert ist.
-*/
-inline void draw7Seg(Adafruit_NeoPixel& strip, uint8_t digit,
+// Ein Pixel unter Berücksichtigung der Strip-Richtung setzen
+inline void setPixel(Adafruit_NeoPixel& strip, uint16_t pos, bool reversed,
                      uint8_t r, uint8_t g, uint8_t b) {
-  (void)digit;                           // Platzhalter – Ziffer wird noch ignoriert
-  strip.fill(strip.Color(r, g, b));      // komplette Farbe setzen
+  uint16_t idx = reversed ? strip.numPixels() - 1 - pos : pos;
+  strip.setPixelColor(idx, strip.Color(r, g, b));
+}
+
+// Zeichnet ein 3x5-Digit an gegebener Startspalte
+inline void drawDigit(Adafruit_NeoPixel* strips, uint16_t start, bool reversed,
+                      uint8_t digit, uint8_t r, uint8_t g, uint8_t b) {
+  for (uint8_t row = 0; row < 5; ++row) {
+    uint8_t bits = pgm_read_byte(&FONT_3x5[digit][row]);
+    for (uint8_t col = 0; col < 3; ++col) {
+      bool on = bits & (1 << (2 - col));
+      setPixel(strips[row], start + col, reversed,
+               on ? r : 0, on ? g : 0, on ? b : 0);
+    }
+  }
+}
+
+// Doppelpunkt zeichnen (Punkte in Zeile 2 und 4)
+inline void drawColon(Adafruit_NeoPixel* strips, uint16_t col, bool reversed,
+                      uint8_t r, uint8_t g, uint8_t b) {
+  const bool dots[5] = {false, true, false, true, false};
+  for (uint8_t row = 0; row < 5; ++row) {
+    if (dots[row]) setPixel(strips[row], col, reversed, r, g, b);
+    else           setPixel(strips[row], col, reversed, 0, 0, 0);
+  }
 }
 
 // ───────────────────────── Rendering‑Routinen ─────────────────────────
-// ▸ drawClock()     – Aktuelle Uhrzeit (Stunden, Minuten, Sekunden)
+// ▸ drawClock()     – Aktuelle Uhrzeit (Stunden, Minuten)
 // ▸ drawCountdown() – Laufender Countdown (Minuten, Sekunden)
-// ▸ drawBonus()     – Laufender Nachteilsausgleich (Minuten, Sekunden)
+// ▸ drawBonusTop()    – Bonuszeit oben (nach Countdown)
+// ▸ drawBonusBottom() – Bonuszeit unten während Countdowns
 
 void drawClock() {
   clearAll();
   struct tm t {}; time_t now = time(nullptr); localtime_r(&now, &t);
-  uint8_t h = t.tm_hour, m = t.tm_min, s = t.tm_sec;
-  draw7Seg(clockStrips[0], h / 10, 255, 0,   0);   // Zehner Stunden – rot
-  draw7Seg(clockStrips[1], h % 10, 255, 0,   0);   // Einer  Stunden – rot
-  draw7Seg(clockStrips[2], m / 10, 0,   255, 0);   // Zehner Minuten – grün
-  draw7Seg(clockStrips[3], m % 10, 0,   255, 0);   // Einer  Minuten – grün
-  draw7Seg(clockStrips[4], s / 10, 0,   0,   255); // Zehner Sekunden – blau
+  uint8_t h = t.tm_hour, m = t.tm_min;
+  // Stunden in Cyan, Minuten in Weiß
+  drawDigit(clockStrips, 0,  false, h / 10, 0, 255, 255);
+  drawDigit(clockStrips, 4,  false, h % 10, 0, 255, 255);
+  drawColon(clockStrips, 8,  false, 255, 255, 255);
+  drawDigit(clockStrips, 10, false, m / 10, 255, 255, 255);
+  drawDigit(clockStrips, 14, false, m % 10, 255, 255, 255);
   showAll();
 }
 
@@ -191,30 +215,71 @@ void drawCountdown(time_t now) {
   clearAll();
   int32_t rem = state.cdEnd - now;          // Restsekunden
   if (rem < 0) rem = 0;
-  uint8_t m = rem / 60, s = rem % 60;
-  draw7Seg(timerStrips[0], m / 10, 255, 128, 0);   // orange/gelb
-  draw7Seg(timerStrips[1], m % 10, 255, 128, 0);
-  draw7Seg(timerStrips[2], s / 10, 255, 255, 0);
-  draw7Seg(timerStrips[3], s % 10, 255, 255, 0);
-  // Ladebalken proportional füllen
-  float progress = 1.0f - rem / (float)state.cdDur;
-  barTop.fill(barTop.Color(0, 255, 0), 0, progress * NUM_BAR_TOP);
-  barBot.fill(barBot.Color(0, 255, 0), 0, progress * NUM_BAR_BOT);
+  uint16_t totalMin = rem / 60;
+  uint8_t s = rem % 60;
+
+  float progress = state.cdDur ? rem / (float)state.cdDur : 0.0f; // 1.0 = Start, 0 = Ende
+  bool warn  = progress <= (WARN_THRESHOLD_PCT / 100.0f);
+  bool blink = progress <= (BLINK_LAST_PCT / 100.0f);
+
+  if (blink && (now % 2)) {                      // jede zweite Sekunde dunkel
+    showAll();
+    return;
+  }
+
+  uint8_t r = warn ? 255 : 255;
+  uint8_t g = warn ? 0   : 255;
+  uint8_t b = warn ? 0   : 255;
+  drawDigit(timerStrips, 0,  false, (totalMin / 100) % 10, r, g, b);
+  drawDigit(timerStrips, 4,  false, (totalMin / 10) % 10, r, g, b);
+  drawDigit(timerStrips, 8,  false, totalMin % 10, r, g, b);
+  drawColon(timerStrips, 12, false, r, g, b);
+  drawDigit(timerStrips, 14, false, s / 10, r, g, b);
+  drawDigit(timerStrips, 18, false, s % 10, r, g, b);
+
+  auto drawBar = [](Adafruit_NeoPixel& bar, uint16_t count, float prog) {
+    bar.clear();
+    int fill = round(prog * count);
+    for (int i = 0; i < fill; ++i) {
+      uint32_t c;
+      if (i >= fill - 2)      c = bar.Color(255, 0, 0);      // letzte 2 -> Rot
+      else if (i >= fill - 4) c = bar.Color(255, 255, 0);    // davor Gelb
+      else                    c = bar.Color(0, 255, 0);      // Rest Grün
+      bar.setPixelColor(i, c);
+    }
+  };
+
+  drawBar(barTop, NUM_BAR_TOP, progress);
+  drawBar(barBot, NUM_BAR_BOT, progress);
   showAll();
 }
 
-void drawBonus(time_t now) {
+void drawBonusTop(time_t now) {
   clearAll();
   int32_t rem = state.cdEnd + state.bonusSec - now;
   if (rem < 0) rem = 0;
-  uint8_t m = rem / 60, s = rem % 60;
-  draw7Seg(nachStrips[0], m / 10, 128, 0, 128);     // lila
-  draw7Seg(nachStrips[1], m % 10, 128, 0, 128);
-  draw7Seg(nachStrips[2], s / 10, 138, 43, 226);    // blauviolett
-  draw7Seg(nachStrips[3], s % 10, 138, 43, 226);
+  uint16_t m = rem / 60;
+  uint8_t r = 128, g = 0, b = 128;            // Lila
+  drawDigit(timerStrips, 0,  false, (m / 100) % 10, r, g, b);
+  drawDigit(timerStrips, 4,  false, (m / 10) % 10, r, g, b);
+  drawDigit(timerStrips, 8,  false, m % 10, r, g, b);
+  drawColon(timerStrips, 12, false, 0, 0, 0);
+  drawDigit(timerStrips, 14, false, 0, 0, 0, 0);
+  drawDigit(timerStrips, 18, false, 0, 0, 0, 0);
   float progress = 1.0f - rem / (float)state.bonusSec;
-  barTop.fill(barTop.Color(128, 0, 128), 0, progress * NUM_BAR_TOP);
-  barBot.fill(barBot.Color(128, 0, 128), 0, progress * NUM_BAR_BOT);
+  barTop.fill(barTop.Color(r, g, b), 0, progress * NUM_BAR_TOP);
+  barBot.fill(barBot.Color(r, g, b), 0, progress * NUM_BAR_BOT);
+  showAll();
+}
+
+void drawBonusBottom(time_t now) {
+  int32_t rem = state.cdEnd + state.bonusSec - now;
+  if (rem < 0) rem = 0;
+  uint16_t m = rem / 60;
+  uint8_t r = 128, g = 0, b = 128;
+  drawDigit(nachStrips, 0, true, (m / 100) % 10, r, g, b);
+  drawDigit(nachStrips, 4, true, (m / 10) % 10, r, g, b);
+  drawDigit(nachStrips, 8, true, m % 10, r, g, b);
   showAll();
 }
 
@@ -317,6 +382,7 @@ void loop() {
         state.phase = state.bonusSec ? State::BONUS : State::SHOW_CLOCK;
       } else {
         drawCountdown(now);
+        if (state.bonusSec) drawBonusBottom(now);
       }
       break;
 
@@ -324,7 +390,7 @@ void loop() {
       if (now >= state.cdEnd + state.bonusSec) {
         state.phase = State::SHOW_CLOCK;
       } else {
-        drawBonus(now);
+        drawBonusTop(now);
       }
       break;
   }
@@ -332,9 +398,8 @@ void loop() {
 
 // ─────────────────────── Noch nicht eingebundene Features ─────────────
 /*
-  ▸ draw7Seg(): Aktuell simple Vollflächen‑Färbung. Eine echte 7‑Segment‑
-               Bitmap‑Zuordnung (pro Pixel) kann eingebunden werden, um
-               die Ziffern realistisch darzustellen.
+  ▸ Segment-Schrift ist über FONT_3x5 definiert und wird von drawDigit
+    genutzt, um reale 7‑Segment‑Muster darzustellen.
   ▸ Helligkeits‑Regelung über Web‑Endpoint (z. B. /brightness?val=128)
   ▸ Persistente Speicherung (LittleFS/Preferences) von WLAN‑Credentials
     und Brightness für Stand‑Alone‑Betrieb ohne erneutes Flashen.

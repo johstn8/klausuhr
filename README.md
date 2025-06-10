@@ -20,10 +20,10 @@ Alle Anzeigen sind farbcodiert und aus der letzten Reihe gut lesbar. Die Steueru
 
 | Position | Einheit             | LED‑Layout pro Strip | # Strips | Pixel gesamt | Zweck                                                |
 | -------- | ------------------- | -------------------- | -------- | ------------ | ---------------------------------------------------- |
-| oben     | **Timer‑Digits**    | 21 LED               | **5**    | 105          | HH : MM : SS‑Countdown                               |
+| oben     | **Timer‑Digits**    | 21 LED               | **5**    | 105          | MM : SS‑Countdown                               |
 | Mitte    | **Loading Bars**    | 40 & 39 LED          | **2**    | 79           | Balken läuft synchron rückwärts – abgeschrägtes Ende |
-| unten‑re | **Nachteil‑Digits** | 11 LED               | **5**    | 55           | Bonus‑Minuten / Sekunden                             |
-| unten‑li | **Uhrzeit‑Digits**  | 17 LED               | **5**    | 85           | Uhrzeit & Kurztexte                                  |
+| unten‑re | **Nachteil‑Digits** | 11 LED               | **5**    | 55           | Bonus‑Minuten                             |
+| unten‑li | **Uhrzeit‑Digits**  | 17 LED               | **5**    | 85           | Uhrzeit (HH : MM) & Kurztexte                                  |
 
 **Gesamt‑Pixel:** 105 + 79 + 55 + 85 = **324**  
 **Controller:** ESP32‑WROOM‑32 DevKit (alle 17 GPIOs frei verfügbar)  
@@ -42,6 +42,41 @@ Alle Anzeigen sind farbcodiert und aus der letzten Reihe gut lesbar. Die Steueru
 Die Pins, die für die jeweiligen Gruppen angegeben sind, steuern die jeweiligen LED-Streifen an. Die Pins, die zuerst genannt werden, sind immer für die oberen LED-Streifen. So ist z.B. bei Timer-Digits der Pin 2 für den obersten LED-Streifen, der Pin 4 für den zweit-obersten, etc.
 LED‑Indexierung: Bei **Timer‑**, **Uhrzeit‑** und **Loading‑Strips** beginnt der Index 0 für die Strips **links** und zählt nach rechts (0 ist dann die 1. LED von links, 1 die zweite LED, etc.); bei den **Nachteil‑Strips** beginnt Index 0 **rechts** und zählt nach links.
 
+### 2.2 LED‑Aufteilung der Zeit
+
+Die fünf Strips eines Bereichs liegen übereinander und bilden damit eine Matrix aus **Zeilen** (Streifen) und **Spalten** (LED‑Index). Diese Matrix stellt jeweils eine 7‑Segment‑Anzeige dar. Die Strips sind so verkabelt, dass die folgenden LED‑Gruppen jeweils ein Zeit‑Digit ergeben (von links gezählt; beim Nachteilsausgleich liegt das Datenkabel rechts):
+
+* **Timer:**
+  1. 3 LED → Hunderter‑Minute
+  2. 1 LED → Platzhalter (aus)
+  3. 3 LED → Zehner‑Minute
+  4. 1 LED → Platzhalter (aus)
+  5. 3 LED → Einer‑Minute
+  6. 1 LED → Platzhalter (aus)
+  7. 1 LED → Doppelpunkt
+  8. 1 LED → Platzhalter (aus)
+  9. 3 LED → Zehner‑Sekunde
+ 10. 1 LED → Platzhalter (aus)
+ 11. 3 LED → Einer‑Sekunde
+
+* **Uhrzeit:**
+  1. 3 LED → Zehner‑Stunde
+  2. 1 LED → Platzhalter (aus)
+  3. 3 LED → Einer‑Stunde
+  4. 1 LED → Platzhalter (aus)
+  5. 1 LED → Doppelpunkt
+  6. 1 LED → Platzhalter (aus)
+  7. 3 LED → Zehner‑Minute
+  8. 1 LED → Platzhalter (aus)
+  9. 3 LED → Einer‑Minute
+
+* **Nachteilsausgleich** (Ansteuerung von rechts):
+  1. 3 LED → Hunderter‑Minute
+  2. 1 LED → Platzhalter (aus)
+  3. 3 LED → Zehner‑Minute
+  4. 1 LED → Platzhalter (aus)
+  5. 3 LED → Einer‑Minute
+
 > *Kein MCP23017 mehr nötig – alle Segmente hängen direkt am ESP32.*
 
 ---
@@ -52,7 +87,7 @@ LED‑Indexierung: Bei **Timer‑**, **Uhrzeit‑** und **Loading‑Strips** beg
 
 | State           | Beschreibung                                      |
 | --------------- | ------------------------------------------------- |
-| **SHOW_CLOCK** | Anzeige der aktuellen Uhrzeit (HH:MM:SS)        |
+| **SHOW_CLOCK** | Anzeige der aktuellen Uhrzeit (HH:MM)           |
 | **COUNTDOWN**   | Laufender Prüfungs‑Countdown                      |
 | **BONUS**       | Nachteilsausgleich läuft (übernimmt Rest‑Anzeige) |
 
@@ -122,8 +157,9 @@ Anzeige‑Ablauf: Bonus‑Timer startet parallel unten‑rechts ➜ bei Haupt‑
 
 ## 8 Schriftart / Segment‑Mapping
 
-Bisher rendert `draw7Seg()` die Digits **vollflächig**.  
-*Nächster Schritt*: pro Segment eine LED‑Index‑Tabelle (`segA`, `segB`, … `segG`) direkt im Header definieren (keine externen Dateien erforderlich).
+Jede Ziffer wird jetzt aus einer 3×5‑Matrix gerendert. Die Zuordnung der
+Pixel erfolgt über Konstanten in `font7seg.h`, aus denen `drawDigit()` die
+7‑Segment‑Formen ableitet.
 
 ---
 
@@ -131,7 +167,7 @@ Bisher rendert `draw7Seg()` die Digits **vollflächig**.
 
 ### Firmware
 
-- **[ ] Segment‑Font:** LED‑Koordinaten für 7‑Segment‑Digits (21/17/11 LED‑Varianten) in `font7seg.h` eintragen.
+- **[x] Segment‑Font:** LED‑Koordinaten für 7‑Segment‑Digits sind in `font7seg.h` definiert.
 - **[ ] Prozent‑Schwellen:** Implementierung der Rot‑/Blink‑Logik basierend auf `WARN_THRESHOLD_PCT` & `BLINK_LAST_PCT`.
 - **[ ] Bonus‑Stufen:** 10 / 15 / 20 / 25 % Berechnung + Anzeige synchronisieren.
 - **[ ] Test‑Modus:** Rote‑LED‑Routine & `/testPattern`‑Endpoint ergänzen; 30 s Timeout & Reboot.
