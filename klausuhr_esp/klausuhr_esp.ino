@@ -38,6 +38,9 @@
 #include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
 #include <esp_wifi.h>
 
+// Ladebalken vorübergehend deaktivierbar
+#define USE_LOADING_BAR 0  // 1 = anzeigen, 0 = auskommentiert
+
 // ───────────────────────────── WLAN & NTP ─────────────────────────────
 // Globaler Handle für No-Light-Sleep | Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website
 esp_pm_lock_handle_t pm_lock_l0;
@@ -73,8 +76,10 @@ const unsigned long LED_TEST_INTERVAL  = 1000;    // Farbwechsel alle Sekunde
 constexpr uint16_t NUM_TIMER_LED = 21;   // je Digit des Countdowns
 constexpr uint16_t NUM_NACH_LED  = 11;   // je Digit des Nachteilsausgleichs
 constexpr uint16_t NUM_CLOCK_LED = 17;   // je Digit der Uhrzeit
+#if USE_LOADING_BAR
 constexpr uint16_t NUM_BAR_TOP   = 40;   // Ladebalken oben
 constexpr uint16_t NUM_BAR_BOT   = 39;   // Ladebalken unten
+#endif
 
 // Prozentuale Schwellen
 constexpr uint8_t WARN_THRESHOLD_PCT  = 20;   // ab hier rote Darstellung
@@ -84,15 +89,19 @@ constexpr uint8_t BLINK_LAST_PCT      = 5;    // letzten % blinken 1 Hz
 const uint8_t PIN_T[5] = {  2,  4, 16, 17,  5 };  // Timer
 const uint8_t PIN_N[5] = { 18, 19, 21, 22, 23 };  // Nachteil
 const uint8_t PIN_C[5] = { 13, 12, 14, 27, 26 };  // Clock
+#if USE_LOADING_BAR
 const uint8_t PIN_BAR_TOP = 33;                   // Ladebalken oben (40 LED)
 const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
+#endif
 
 // ────────────────────────── LED-Arrays ──────────────────────────
 CRGB timerLeds[5][NUM_TIMER_LED];
 CRGB nachLeds[5][NUM_NACH_LED];
 CRGB clockLeds[5][NUM_CLOCK_LED];
+#if USE_LOADING_BAR
 CRGB barTopLeds[NUM_BAR_TOP];
 CRGB barBotLeds[NUM_BAR_BOT];
+#endif
 
 // ───────────────────────── Programm‑Zustand ───────────────────────────
 struct State {
@@ -119,8 +128,10 @@ inline void clearAll() {
   for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, CRGB::Black);
   for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, CRGB::Black);
   for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, CRGB::Black);
+#if USE_LOADING_BAR
   fill_solid(barTopLeds, NUM_BAR_TOP, CRGB::Black);
   fill_solid(barBotLeds, NUM_BAR_BOT, CRGB::Black);
+#endif
 }
 
 // Zeigt alle Strips gleichzeitig an
@@ -134,8 +145,10 @@ inline void fillAll(uint8_t r, uint8_t g, uint8_t b) {
   for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, col);
   for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, col);
   for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, col);
+#if USE_LOADING_BAR
   fill_solid(barTopLeds, NUM_BAR_TOP, col);
   fill_solid(barBotLeds, NUM_BAR_BOT, col);
+#endif
   showAll();
 }
 
@@ -270,6 +283,7 @@ void drawCountdown(time_t now) {
   drawDigit(timerLeds, 14, false, s / 10, r, g, b);
   drawDigit(timerLeds, 18, false, s % 10, r, g, b);
 
+#if USE_LOADING_BAR
   auto drawBar = [](CRGB* bar, uint16_t count, float prog) {
     fill_solid(bar, count, CRGB::Black);
     int fill = round(prog * count);
@@ -282,6 +296,7 @@ void drawCountdown(time_t now) {
 
   drawBar(barTopLeds, NUM_BAR_TOP, progress);
   drawBar(barBotLeds, NUM_BAR_BOT, progress);
+#endif
   showAll();
 }
 
@@ -298,6 +313,7 @@ void drawBonusTop(time_t now) {
   drawDigit(timerLeds, 14, false, 0, 0, 0, 0);
   drawDigit(timerLeds, 18, false, 0, 0, 0, 0);
   float progress = 1.0f - rem / (float)state.bonusSec;
+#if USE_LOADING_BAR
   int fillTop = round(progress * NUM_BAR_TOP);
   int fillBot = round(progress * NUM_BAR_BOT);
   fill_solid(barTopLeds, NUM_BAR_TOP, CRGB::Black);
@@ -308,6 +324,7 @@ void drawBonusTop(time_t now) {
   for (int i = 0; i < fillBot; ++i) {
     barBotLeds[i] = CRGB(r, g, b);
   }
+#endif
   showAll();
 }
 
@@ -338,8 +355,10 @@ void setup() {
     FastLED.addLeds<LED_TYPE, PIN_N[i], COLOR_ORDER>(nachLeds[i],  NUM_NACH_LED);
     FastLED.addLeds<LED_TYPE, PIN_C[i], COLOR_ORDER>(clockLeds[i], NUM_CLOCK_LED);
   }
+#if USE_LOADING_BAR
   FastLED.addLeds<LED_TYPE, PIN_BAR_TOP, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
   FastLED.addLeds<LED_TYPE, PIN_BAR_BOT, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
+#endif
   clearAll();
   FastLED.show();
 

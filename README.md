@@ -40,6 +40,7 @@ Alle Anzeigen sind farbcodiert und aus der letzten Reihe gut lesbar. Die Steueru
 | Nachteil‑Digits | **18, 19, 21, 22, 23**            |
 | Uhrzeit‑Digits  | **13, 12, 14, 27, 26**            |
 | Loading Bars    | **33** (40 LED) / **32** (39 LED) |
+Wer weniger GPIOs nutzen möchte, kann die beiden Loading‑Bar-Pins über die Konstante `USE_LOADING_BAR` in `klausuhr_esp.ino` deaktivieren. Dadurch reduziert sich das Setup auf nur 15 Pins.
 
 Die Pins, die für die jeweiligen Gruppen angegeben sind, steuern die jeweiligen LED-Streifen an. Die Pins, die zuerst genannt werden, sind immer für die oberen LED-Streifen. So ist z.B. bei Timer-Digits der Pin 2 für den obersten LED-Streifen, der Pin 4 für den zweit-obersten, etc.
 LED‑Indexierung: Bei **Timer‑**, **Uhrzeit‑** und **Loading‑Strips** beginnt der Index 0 für die Strips **links** und zählt nach rechts (0 ist dann die 1. LED von links, 1 die zweite LED, etc.); bei den **Nachteil‑Strips** beginnt Index 0 **rechts** und zählt nach links.
