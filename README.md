@@ -1,12 +1,14 @@
 # KlausUhr – Aula‑Timer / LED‑Uhr 📘
 
-> **Version:** Projektdokumentation v0.4 (07 Jun 2025)> **Zielgruppe:** Firmware‑ & Frontend‑Dev‑Team> **Scope:** Beschreibung / Architektur – *ohne Code‑Snippets*
+> **Version:** Projektdokumentation v0.4 (07 Jun 2025)
+> **Zielgruppe:** Firmware‑ & Frontend‑Dev‑Team
+> **Scope:** Beschreibung / Architektur – *ohne Code‑Snippets*
 
 ---
 
 ## 1 Projektidee
 
-KlausUhr ist eine **raumgroße LED‑Uhr** für schriftliche Prüfungen in der Aula.Sie vereint drei Funktionen:
+KlausUhr ist eine **raumgroße LED‑Uhr** für schriftliche Prüfungen in der Aula. Sie vereint drei Funktionen:
 
 1. **Countdown‑Timer** (Prüfungsdauer ↓)
 2. **Nachteilsausgleich** – Bonus‑Timer für einzelne Schüler:innen
