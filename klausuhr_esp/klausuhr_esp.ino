@@ -36,6 +36,7 @@
 #include "font7seg.h"
 #include <time.h>
 #include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
+#include <esp_wifi.h>
 
 // ───────────────────────────── WLAN & NTP ─────────────────────────────
 // Globaler Handle für No-Light-Sleep | Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website
@@ -119,6 +120,11 @@ uint32_t ledTestStart       = 0;
 uint32_t ledTestLastChange  = 0;
 uint8_t  ledTestColorIndex  = 0;
 
+// ────────────── NTP-Zeit-Handling ──────────────
+bool     timeSynced        = false;   // true, sobald Uhrzeit erfolgreich geholt
+unsigned long nextTimeSync = 0;       // millis() für nächsten Sync-Versuch
+bool     firstSyncAttempt  = true;    // steuert 1‑minütigen Retry
+
 // ───────────────────── Hilfsfunktionen für die LEDs ───────────────────
 // Löscht alle Strips (schwarz)
 inline void clearAll() {
@@ -166,6 +172,38 @@ inline void runLedTest() {
   fillAll(col[0], col[1], col[2]);
 }
 
+// Holt die Uhrzeit über NTP. Gibt true bei Erfolg zurück.
+bool syncTimeNow() {
+  Serial.println(F("Versuche NTP-Zeit abzurufen..."));
+
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.begin(STA_SSID, STA_PASS);
+
+  unsigned long startAttempt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000) {
+    delay(100);
+  }
+
+  bool ok = false;
+  if (WiFi.status() == WL_CONNECTED) {
+    configTime(GMT_OFFSET, DST_OFFSET, NTP_POOL[0], NTP_POOL[1], NTP_POOL[2]);
+    struct tm tinfo {};
+    if (getLocalTime(&tinfo, 10000)) {
+      Serial.println(F("NTP Sync erfolgreich"));
+      ok = true;
+    } else {
+      Serial.println(F("NTP Sync fehlgeschlagen"));
+    }
+  } else {
+    Serial.println(F("WLAN-Verbindung fehlgeschlagen"));
+  }
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_AP);
+
+  return ok;
+}
+
 // Ein Pixel unter Berücksichtigung der Strip-Richtung setzen
 inline void setPixel(Adafruit_NeoPixel& strip, uint16_t pos, bool reversed,
                      uint8_t r, uint8_t g, uint8_t b) {
@@ -204,6 +242,10 @@ inline void drawColon(Adafruit_NeoPixel* strips, uint16_t col, bool reversed,
 
 void drawClock() {
   clearAll();
+  if (!timeSynced) {
+    showAll();
+    return;
+  }
   struct tm t {}; time_t now = time(nullptr); localtime_r(&now, &t);
   uint8_t h = t.tm_hour, m = t.tm_min;
   // Stunden in Cyan, Minuten in Weiß
@@ -318,9 +360,8 @@ void setup() {
     while (true) delay(200);
   }
 
-  // 4) WLAN Setup
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.begin(STA_SSID, STA_PASS);                        // Verbindung zur Schule
+  // 4) WLAN Setup (nur AP – STA wird für NTP temporär aktiviert)
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(AP_IP, AP_IP, NETMASK);              // fixe AP‑Adresse
   WiFi.softAP(AP_SSID, AP_PASS, 6 /*Channel*/, 0 /*sichtbar*/, 4 /*max*/);
   WiFi.setSleep(false);                                   // Fehlerbehebung: WLAN-Disconnection zu Geräten bei Aufruf von Webseiten
@@ -328,8 +369,8 @@ void setup() {
   dns.start(53, "*", AP_IP);                            // alle Domains -> Captive‑Portal
   Serial.printf("AP bereit: SSID='%s'  IP=%s\n", AP_SSID, AP_IP.toString().c_str());
 
-  // 5) Zeit per NTP holen
-  configTime(GMT_OFFSET, DST_OFFSET, NTP_POOL[0], NTP_POOL[1], NTP_POOL[2]);
+  // 5) Ersten NTP-Sync planen (sofort)
+  nextTimeSync = 0;
 
   // 6) Web‑Routen
   server.on("/", HTTP_GET, [](){                      // Root → index.html liefern
@@ -374,6 +415,24 @@ void setup() {
 void loop() {
   dns.processNextRequest();       // Captive‑Portal DNS annehmen
   server.handleClient();          // HTTP‑Anfragen bearbeiten
+
+  // NTP-Syncs abarbeiten
+  if (millis() >= nextTimeSync) {
+    bool ok = syncTimeNow();
+    if (ok) {
+      timeSynced       = true;
+      firstSyncAttempt = true; // reset für spätere Ausfälle
+      nextTimeSync     = millis() + 3600000UL; // stündlich neu syncen
+    } else {
+      timeSynced = false;
+      if (firstSyncAttempt) {
+        nextTimeSync = millis() + 60000UL; // nach 1 Minute erneut
+        firstSyncAttempt = false;
+      } else {
+        nextTimeSync = millis() + 600000UL; // danach alle 10 Minuten
+      }
+    }
+  }
 
   if (ledTestRunning) {
     uint32_t nowMs = millis();
