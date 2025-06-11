@@ -352,6 +352,7 @@ void drawBonusBottom(time_t now) {
 void setup() {
   Serial.begin(115200);
   delay(200);                       // Stabilisierung nach Reset
+  Serial.println(F("Setup gestartet"));
 
   // 1) Erzeuge und aktiviere den Lock, der Light-Sleep komplett verhindert | Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website
   esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "no_light_sleep", &pm_lock_l0);
@@ -359,6 +360,11 @@ void setup() {
   
   // 2) LED‑Streifen initialisieren
   leds = (CRGB*)heap_caps_malloc(NUM_STRIPS * PIXELS_PER_STRIP * sizeof(CRGB), MALLOC_CAP_DMA);
+  if (!leds) {
+    Serial.println(F("LED-Puffer konnte nicht reserviert werden"));
+  } else {
+    Serial.printf("LED-Puffer: %p\n", leds);
+  }
   int idx = 0;
   for (int i = 0; i < 5; ++i) { timerLeds[i] = &leds[idx]; idx += PIXELS_PER_STRIP; }
   for (int i = 0; i < 5; ++i) { nachLeds[i]  = &leds[idx]; idx += PIXELS_PER_STRIP; }
@@ -371,6 +377,7 @@ void setup() {
   memcpy(dataPins, tmp, sizeof(dataPins));
   ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP,
                     static_cast<colorarrangment>(ORDER_GRB));
+  Serial.println(F("LED-Treiber initialisiert"));
   clearAll();
   ledDriver.showPixels();
 
@@ -379,6 +386,7 @@ void setup() {
     Serial.println(F("LittleFS Mount failed – stopping."));
     while (true) delay(200);
   }
+  Serial.println(F("LittleFS bereit"));
 
   // 4) WLAN Setup (nur AP – STA wird für NTP temporär aktiviert)
   WiFi.mode(WIFI_AP);
@@ -407,28 +415,33 @@ void setup() {
     state.bonusSec = server.arg("bonus").toInt();
     state.cdEnd    = time(nullptr) + state.cdDur;
     state.phase    = State::COUNTDOWN;
+    Serial.printf("Countdown gestartet: %u s, Bonus %u s\n", state.cdDur, state.bonusSec);
     server.send(200, "text/plain", "ok");
   });
 
   server.on("/resetTimer", HTTP_GET, [](){             // Timer zurücksetzen
     state.phase = State::SHOW_CLOCK;
+    Serial.println(F("Timer zurückgesetzt"));
     server.send(200, "text/plain", "reset ok");
   });
 
   server.on("/led-post", HTTP_GET, [](){               // LED-Selbsttest starten
     if (ledTestRunning) {
+      Serial.println(F("LED-Test läuft bereits"));
       server.send(200, "text/plain", "LED-Test läuft bereits");
     } else {
       ledTestRunning    = true;
       ledTestStart      = millis();
       ledTestLastChange = ledTestStart;
       ledTestColorIndex = 0;
+      Serial.println(F("LED-Test gestartet"));
       server.send(200, "text/plain", "LED-Test gestartet");
     }
   });
 
   ElegantOTA.begin(&server);                            // OTA‑Flash via /update
   server.begin();
+  Serial.println(F("HTTP-Server gestartet"));
 }
 
 // ───────────────────────────── LOOP ────────────────────────────────
@@ -476,6 +489,7 @@ void loop() {
     case State::COUNTDOWN:
       if (now >= state.cdEnd) {
         state.phase = state.bonusSec ? State::BONUS : State::SHOW_CLOCK;
+        Serial.println(state.bonusSec ? F("Bonusphase gestartet") : F("Countdown beendet"));
       } else {
         drawCountdown(now);
         if (state.bonusSec) drawBonusBottom(now);
@@ -485,6 +499,7 @@ void loop() {
     case State::BONUS:
       if (now >= state.cdEnd + state.bonusSec) {
         state.phase = State::SHOW_CLOCK;
+        Serial.println(F("Bonusphase beendet"));
       } else {
         drawBonusTop(now);
       }
