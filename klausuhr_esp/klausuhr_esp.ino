@@ -33,6 +33,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <FastLED.h>
+#include <I2SClocklessLedDriver.h>
 #include "font7seg.h"
 #include <time.h>
 #include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
@@ -68,6 +69,7 @@ const char*    NTP_POOL[] = { "de.pool.ntp.org", "pool.ntp.org", "time.nist.gov"
 // ─────────────────────────── LED‑Konstanten ───────────────────────────
 #define LED_TYPE    WS2812B                 // LED-Typ für FastLED
 #define COLOR_ORDER GRB
+#define ORDER_GRB 0
 #define BRIGHTNESS 48                       // Grundhelligkeit 0‑255 ≈ 20 %
 const unsigned long LED_TEST_DURATION  = 120000;  // 2 Minuten in Millisekunden
 const unsigned long LED_TEST_INTERVAL  = 1000;    // Farbwechsel alle Sekunde
@@ -94,14 +96,21 @@ const uint8_t PIN_BAR_TOP = 33;                   // Ladebalken oben (40 LED)
 const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
 #endif
 
-// ────────────────────────── LED-Arrays ──────────────────────────
-CRGB timerLeds[5][NUM_TIMER_LED];
-CRGB nachLeds[5][NUM_NACH_LED];
-CRGB clockLeds[5][NUM_CLOCK_LED];
+constexpr uint8_t NUM_STRIPS = 16;
+constexpr uint16_t PIXELS_PER_STRIP = 40;
+uint8_t dataPins[NUM_STRIPS];
+const uint8_t PIN_BCLK = 25;
+const uint8_t PIN_WS   = 15;
+
+CRGB* leds;
+CRGB* timerLeds[5];
+CRGB* nachLeds[5];
+CRGB* clockLeds[5];
 #if USE_LOADING_BAR
-CRGB barTopLeds[NUM_BAR_TOP];
-CRGB barBotLeds[NUM_BAR_BOT];
+CRGB* barTopLeds;
+CRGB* barBotLeds;
 #endif
+I2SClocklessLedDriver ledDriver;
 
 // ───────────────────────── Programm‑Zustand ───────────────────────────
 struct State {
@@ -136,7 +145,7 @@ inline void clearAll() {
 
 // Zeigt alle Strips gleichzeitig an
 inline void showAll() {
-  FastLED.show();
+  ledDriver.showPixels();
 }
 
 // Füllt alle Strips mit derselben Farbe
@@ -349,18 +358,21 @@ void setup() {
   esp_pm_lock_acquire(pm_lock_l0);
   
   // 2) LED‑Streifen initialisieren
-  FastLED.setBrightness(BRIGHTNESS);
-  for (int i = 0; i < 5; ++i) {
-    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(timerLeds[i], NUM_TIMER_LED).setPin(PIN_T[i]);
-    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(nachLeds[i],  NUM_NACH_LED).setPin(PIN_N[i]);
-    FastLED.addLeds<LED_TYPE, COLOR_ORDER>(clockLeds[i], NUM_CLOCK_LED).setPin(PIN_C[i]);
-  }
+  leds = (CRGB*)heap_caps_malloc(NUM_STRIPS * PIXELS_PER_STRIP * sizeof(CRGB), MALLOC_CAP_DMA);
+  int idx = 0;
+  for (int i = 0; i < 5; ++i) { timerLeds[i] = &leds[idx]; idx += PIXELS_PER_STRIP; }
+  for (int i = 0; i < 5; ++i) { nachLeds[i]  = &leds[idx]; idx += PIXELS_PER_STRIP; }
+  for (int i = 0; i < 5; ++i) { clockLeds[i] = &leds[idx]; idx += PIXELS_PER_STRIP; }
 #if USE_LOADING_BAR
-  FastLED.addLeds<LED_TYPE, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP).setPin(PIN_BAR_TOP);
-  FastLED.addLeds<LED_TYPE, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT).setPin(PIN_BAR_BOT);
+  barTopLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
+  barBotLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
 #endif
+  uint8_t tmp[] = {2,4,16,17,5,18,19,21,22,23,13,12,14,27,26,0};
+  memcpy(dataPins, tmp, sizeof(dataPins));
+  ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP, ORDER_GRB, PIN_BCLK, PIN_WS);
+  ledDriver.setI2SSpeed(10000000);
   clearAll();
-  FastLED.show();
+  ledDriver.showPixels();
 
   // 3) LittleFS einbinden (Web‑Dateien)
   if (!LittleFS.begin(true)) {
