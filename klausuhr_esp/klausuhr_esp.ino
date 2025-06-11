@@ -33,7 +33,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <FastLED.h>
-#include <I2SClocklessLedDriver.h>
+#include <esp_heap_caps.h>
 #include "font7seg.h"
 #include <time.h>
 #include <esp_pm.h> // Fehlerbehebung: WLAN-Disconnection bei Aufruf von Website: Light-Sleep-Modus deaktivieren
@@ -69,7 +69,6 @@ const char*    NTP_POOL[] = { "de.pool.ntp.org", "pool.ntp.org", "time.nist.gov"
 // ─────────────────────────── LED‑Konstanten ───────────────────────────
 #define LED_TYPE    WS2812B                 // LED-Typ für FastLED
 #define COLOR_ORDER GRB
-#define ORDER_GRB 0
 #define BRIGHTNESS 48                       // Grundhelligkeit 0‑255 ≈ 20 %
 const unsigned long LED_TEST_DURATION  = 120000;  // 2 Minuten in Millisekunden
 const unsigned long LED_TEST_INTERVAL  = 1000;    // Farbwechsel alle Sekunde
@@ -101,6 +100,9 @@ constexpr uint16_t PIXELS_PER_STRIP = 40;
 int dataPins[NUM_STRIPS];
 const uint8_t PIN_BCLK = 25;
 const uint8_t PIN_WS   = 15;
+
+#define NUM_LEDS_PER_STRIP PIXELS_PER_STRIP
+#include <I2SClocklessLedDriver.h>
 
 CRGB* leds;
 CRGB* timerLeds[5];
@@ -367,7 +369,8 @@ void setup() {
 #endif
   int tmp[] = {2,4,16,17,5,18,19,21,22,23,13,12,14,27,26,0};
   memcpy(dataPins, tmp, sizeof(dataPins));
-  ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP, ORDER_GRB);
+  ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP,
+                    static_cast<colorarrangment>(ORDER_GRB));
   clearAll();
   ledDriver.showPixels();
 
