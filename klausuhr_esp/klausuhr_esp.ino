@@ -97,12 +97,19 @@ const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
 
 constexpr uint8_t NUM_STRIPS = 16;
 constexpr uint16_t PIXELS_PER_STRIP = 40;
+
+#define USE_I2S_DRIVER 1
+#if USE_I2S_DRIVER
 int dataPins[NUM_STRIPS];
 const uint8_t PIN_BCLK = 25;
 const uint8_t PIN_WS   = 15;
+#endif
 
 #define NUM_LEDS_PER_STRIP PIXELS_PER_STRIP
+
+#if USE_I2S_DRIVER
 #include <I2SClocklessLedDriver.h>
+#endif
 
 CRGB* leds;
 CRGB* timerLeds[5];
@@ -112,7 +119,9 @@ CRGB* clockLeds[5];
 CRGB* barTopLeds;
 CRGB* barBotLeds;
 #endif
+#if USE_I2S_DRIVER
 I2SClocklessLedDriver ledDriver;
+#endif
 
 // ───────────────────────── Programm‑Zustand ───────────────────────────
 struct State {
@@ -163,7 +172,11 @@ inline void clearNach() {
 
 // Zeigt alle Strips gleichzeitig an
 inline void showAll() {
+#if USE_I2S_DRIVER
   ledDriver.showPixels();
+#else
+  FastLED.show();
+#endif
 }
 
 // Füllt alle Strips mit derselben Farbe
@@ -384,6 +397,7 @@ void setup() {
   barTopLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
   barBotLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
 #endif
+#if USE_I2S_DRIVER
   int tmp[] = {2,4,16,17,5,18,19,21,22,23,13,12,14,27,26,0};
   memcpy(dataPins, tmp, sizeof(dataPins));
   ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP,
@@ -391,6 +405,33 @@ void setup() {
   Serial.println(F("LED-Treiber initialisiert"));
   clearAll();
   ledDriver.showPixels();
+#else
+  FastLED.addLeds<LED_TYPE,  2, COLOR_ORDER>(timerLeds[0], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE,  4, COLOR_ORDER>(timerLeds[1], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE, 16, COLOR_ORDER>(timerLeds[2], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE, 17, COLOR_ORDER>(timerLeds[3], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE,  5, COLOR_ORDER>(timerLeds[4], NUM_TIMER_LED);
+
+  FastLED.addLeds<LED_TYPE, 18, COLOR_ORDER>(nachLeds[0],  NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 19, COLOR_ORDER>(nachLeds[1],  NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 21, COLOR_ORDER>(nachLeds[2],  NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 22, COLOR_ORDER>(nachLeds[3],  NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 23, COLOR_ORDER>(nachLeds[4],  NUM_NACH_LED);
+
+  FastLED.addLeds<LED_TYPE, 13, COLOR_ORDER>(clockLeds[0], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 12, COLOR_ORDER>(clockLeds[1], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 14, COLOR_ORDER>(clockLeds[2], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 27, COLOR_ORDER>(clockLeds[3], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 26, COLOR_ORDER>(clockLeds[4], NUM_CLOCK_LED);
+
+#if USE_LOADING_BAR
+  FastLED.addLeds<LED_TYPE, 33, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
+  FastLED.addLeds<LED_TYPE, 32, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
+#endif
+  FastLED.setBrightness(BRIGHTNESS);
+  clearAll();
+  FastLED.show();
+#endif
 
   // 3) LittleFS einbinden (Web‑Dateien)
   if (!LittleFS.begin(true)) {
