@@ -136,13 +136,29 @@ bool     firstSyncAttempt  = true;    // steuert 1‑minütigen Retry
 // ───────────────────── Hilfsfunktionen für die LEDs ───────────────────
 // Löscht alle Strips (schwarz)
 inline void clearAll() {
-  for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, CRGB::Black);
-  for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, CRGB::Black);
-  for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, CRGB::Black);
+  for (auto& row : timerLeds)  fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
+  for (auto& row : nachLeds)   fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
+  for (auto& row : clockLeds)  fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
 #if USE_LOADING_BAR
-  fill_solid(barTopLeds, NUM_BAR_TOP, CRGB::Black);
-  fill_solid(barBotLeds, NUM_BAR_BOT, CRGB::Black);
+  fill_solid(barTopLeds, PIXELS_PER_STRIP, CRGB::Black);
+  fill_solid(barBotLeds, PIXELS_PER_STRIP, CRGB::Black);
 #endif
+}
+
+inline void clearClock() {
+  for (auto& row : clockLeds) fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
+}
+
+inline void clearTimer() {
+  for (auto& row : timerLeds) fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
+#if USE_LOADING_BAR
+  fill_solid(barTopLeds, PIXELS_PER_STRIP, CRGB::Black);
+  fill_solid(barBotLeds, PIXELS_PER_STRIP, CRGB::Black);
+#endif
+}
+
+inline void clearNach() {
+  for (auto& row : nachLeds) fill_solid(row, PIXELS_PER_STRIP, CRGB::Black);
 }
 
 // Zeigt alle Strips gleichzeitig an
@@ -153,14 +169,13 @@ inline void showAll() {
 // Füllt alle Strips mit derselben Farbe
 inline void fillAll(uint8_t r, uint8_t g, uint8_t b) {
   CRGB col(r, g, b);
-  for (auto& row : timerLeds)  fill_solid(row, NUM_TIMER_LED, col);
-  for (auto& row : nachLeds)   fill_solid(row, NUM_NACH_LED, col);
-  for (auto& row : clockLeds)  fill_solid(row, NUM_CLOCK_LED, col);
+  for (auto& row : timerLeds)  fill_solid(row, PIXELS_PER_STRIP, col);
+  for (auto& row : nachLeds)   fill_solid(row, PIXELS_PER_STRIP, col);
+  for (auto& row : clockLeds)  fill_solid(row, PIXELS_PER_STRIP, col);
 #if USE_LOADING_BAR
-  fill_solid(barTopLeds, NUM_BAR_TOP, col);
-  fill_solid(barBotLeds, NUM_BAR_BOT, col);
+  fill_solid(barTopLeds, PIXELS_PER_STRIP, col);
+  fill_solid(barBotLeds, PIXELS_PER_STRIP, col);
 #endif
-  showAll();
 }
 
 // Eine einfache LED-Testsequenz (Rot → Grün → Blau → Weiß)
@@ -178,6 +193,7 @@ inline void runLedTest() {
   }
   const uint8_t* col = colors[ledTestColorIndex];
   fillAll(col[0], col[1], col[2]);
+  showAll();
 }
 
 // Holt die Uhrzeit über NTP. Gibt true bei Erfolg zurück.
@@ -253,11 +269,8 @@ inline void drawColon(CRGB* strips[5], uint16_t col, bool reversed,
 // ▸ drawBonusBottom() – Bonuszeit unten während Countdowns
 
 void drawClock() {
-  clearAll();
-  if (!timeSynced) {
-    showAll();
-    return;
-  }
+  clearClock();
+  if (!timeSynced) return;
   struct tm t {}; time_t now = time(nullptr); localtime_r(&now, &t);
   uint8_t h = t.tm_hour, m = t.tm_min;
   // Stunden in Cyan, Minuten in Weiß
@@ -266,11 +279,10 @@ void drawClock() {
   drawColon(clockLeds, 8,  false, 255, 255, 255, NUM_CLOCK_LED);
   drawDigit(clockLeds, 10, false, m / 10, 255, 255, 255, NUM_CLOCK_LED);
   drawDigit(clockLeds, 14, false, m % 10, 255, 255, 255, NUM_CLOCK_LED);
-  showAll();
 }
 
 void drawCountdown(time_t now) {
-  clearAll();
+  clearTimer();
   int32_t rem = state.cdEnd - now;          // Restsekunden
   if (rem < 0) rem = 0;
   uint16_t totalMin = rem / 60;
@@ -281,7 +293,6 @@ void drawCountdown(time_t now) {
   bool blink = progress <= (BLINK_LAST_PCT / 100.0f);
 
   if (blink && (now % 2)) {                      // jede zweite Sekunde dunkel
-    showAll();
     return;
   }
 
@@ -309,11 +320,10 @@ void drawCountdown(time_t now) {
   drawBar(barTopLeds, NUM_BAR_TOP, progress);
   drawBar(barBotLeds, NUM_BAR_BOT, progress);
 #endif
-  showAll();
 }
 
 void drawBonusTop(time_t now) {
-  clearAll();
+  clearTimer();
   int32_t rem = state.cdEnd + state.bonusSec - now;
   if (rem < 0) rem = 0;
   uint16_t m = rem / 60;
@@ -337,7 +347,6 @@ void drawBonusTop(time_t now) {
     barBotLeds[i] = CRGB(r, g, b);
   }
 #endif
-  showAll();
 }
 
 void drawBonusBottom(time_t now) {
@@ -348,7 +357,6 @@ void drawBonusBottom(time_t now) {
   drawDigit(nachLeds, 0, true, (m / 100) % 10, r, g, b, NUM_NACH_LED);
   drawDigit(nachLeds, 4, true, (m / 10) % 10, r, g, b, NUM_NACH_LED);
   drawDigit(nachLeds, 8, true, m % 10, r, g, b, NUM_NACH_LED);
-  showAll();
 }
 
 // ───────────────────────────── SETUP ───────────────────────────────
@@ -424,6 +432,9 @@ void setup() {
 
   server.on("/resetTimer", HTTP_GET, [](){             // Timer zurücksetzen
     state.phase = State::SHOW_CLOCK;
+    clearTimer();
+    clearNach();
+    showAll();
     Serial.println(F("Timer zurückgesetzt"));
     server.send(200, "text/plain", "reset ok");
   });
@@ -484,13 +495,17 @@ void loop() {
 
   time_t now = time(nullptr);     // aktuelle Sekundenzahl
 
+  drawClock();                     // Uhr immer aktualisieren
+
   switch (state.phase) {
     case State::SHOW_CLOCK:
-      drawClock();
       break;
 
     case State::COUNTDOWN:
       if (now >= state.cdEnd) {
+        clearTimer();
+        clearNach();
+        showAll();
         state.phase = state.bonusSec ? State::BONUS : State::SHOW_CLOCK;
         Serial.println(state.bonusSec ? F("Bonusphase gestartet") : F("Countdown beendet"));
       } else {
@@ -501,6 +516,9 @@ void loop() {
 
     case State::BONUS:
       if (now >= state.cdEnd + state.bonusSec) {
+        clearTimer();
+        clearNach();
+        showAll();
         state.phase = State::SHOW_CLOCK;
         Serial.println(F("Bonusphase beendet"));
       } else {
@@ -508,6 +526,8 @@ void loop() {
       }
       break;
   }
+
+  showAll();
 }
 
 // ─────────────────────── Noch nicht eingebundene Features ─────────────
