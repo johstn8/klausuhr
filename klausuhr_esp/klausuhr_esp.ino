@@ -198,6 +198,9 @@ bool syncTimeNow() {
     struct tm tinfo {};
     if (getLocalTime(&tinfo, 10000)) {
       Serial.println(F("NTP Sync erfolgreich"));
+      clearAll();                 // LEDs dunkel halten
+      showAll();
+      state.phase = State::SHOW_CLOCK; // Uhrzeitanzeige aktivieren
       ok = true;
     } else {
       Serial.println(F("NTP Sync fehlgeschlagen"));
