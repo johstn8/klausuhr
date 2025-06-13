@@ -210,6 +210,37 @@ inline void runLedTest() {
   showAll();
 }
 
+#if !USE_I2S_DRIVER
+// Explizite Pin-Zuordnung für FastLED
+inline void initStrips() {
+  // Timer-Digits
+  FastLED.addLeds<LED_TYPE,  2, COLOR_ORDER>(timerLeds[0], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE,  4, COLOR_ORDER>(timerLeds[1], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE, 16, COLOR_ORDER>(timerLeds[2], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE, 17, COLOR_ORDER>(timerLeds[3], NUM_TIMER_LED);
+  FastLED.addLeds<LED_TYPE,  5, COLOR_ORDER>(timerLeds[4], NUM_TIMER_LED);
+
+  // Nachteil-Digits
+  FastLED.addLeds<LED_TYPE, 18, COLOR_ORDER>(nachLeds[0], NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 19, COLOR_ORDER>(nachLeds[1], NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 21, COLOR_ORDER>(nachLeds[2], NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 22, COLOR_ORDER>(nachLeds[3], NUM_NACH_LED);
+  FastLED.addLeds<LED_TYPE, 23, COLOR_ORDER>(nachLeds[4], NUM_NACH_LED);
+
+  // Clock-Digits
+  FastLED.addLeds<LED_TYPE, 13, COLOR_ORDER>(clockLeds[0], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 12, COLOR_ORDER>(clockLeds[1], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 14, COLOR_ORDER>(clockLeds[2], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 27, COLOR_ORDER>(clockLeds[3], NUM_CLOCK_LED);
+  FastLED.addLeds<LED_TYPE, 26, COLOR_ORDER>(clockLeds[4], NUM_CLOCK_LED);
+
+#if USE_LOADING_BAR
+  FastLED.addLeds<LED_TYPE, 33, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
+  FastLED.addLeds<LED_TYPE, 32, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
+#endif
+}
+#endif
+
 // Holt die Uhrzeit über NTP. Gibt true bei Erfolg zurück.
 bool syncTimeNow() {
   Serial.println(F("Versuche NTP-Zeit abzurufen..."));
@@ -412,28 +443,7 @@ void setup() {
   clearAll();
   ledDriver.showPixels();
 #else
-  FastLED.addLeds<LED_TYPE,  2, COLOR_ORDER>(timerLeds[0], NUM_TIMER_LED);
-  FastLED.addLeds<LED_TYPE,  4, COLOR_ORDER>(timerLeds[1], NUM_TIMER_LED);
-  FastLED.addLeds<LED_TYPE, 16, COLOR_ORDER>(timerLeds[2], NUM_TIMER_LED);
-  FastLED.addLeds<LED_TYPE, 17, COLOR_ORDER>(timerLeds[3], NUM_TIMER_LED);
-  FastLED.addLeds<LED_TYPE,  5, COLOR_ORDER>(timerLeds[4], NUM_TIMER_LED);
-
-  FastLED.addLeds<LED_TYPE, 18, COLOR_ORDER>(nachLeds[0],  NUM_NACH_LED);
-  FastLED.addLeds<LED_TYPE, 19, COLOR_ORDER>(nachLeds[1],  NUM_NACH_LED);
-  FastLED.addLeds<LED_TYPE, 21, COLOR_ORDER>(nachLeds[2],  NUM_NACH_LED);
-  FastLED.addLeds<LED_TYPE, 22, COLOR_ORDER>(nachLeds[3],  NUM_NACH_LED);
-  FastLED.addLeds<LED_TYPE, 23, COLOR_ORDER>(nachLeds[4],  NUM_NACH_LED);
-
-  FastLED.addLeds<LED_TYPE, 13, COLOR_ORDER>(clockLeds[0], NUM_CLOCK_LED);
-  FastLED.addLeds<LED_TYPE, 12, COLOR_ORDER>(clockLeds[1], NUM_CLOCK_LED);
-  FastLED.addLeds<LED_TYPE, 14, COLOR_ORDER>(clockLeds[2], NUM_CLOCK_LED);
-  FastLED.addLeds<LED_TYPE, 27, COLOR_ORDER>(clockLeds[3], NUM_CLOCK_LED);
-  FastLED.addLeds<LED_TYPE, 26, COLOR_ORDER>(clockLeds[4], NUM_CLOCK_LED);
-
-#if USE_LOADING_BAR
-  FastLED.addLeds<LED_TYPE, 33, COLOR_ORDER>(barTopLeds, NUM_BAR_TOP);
-  FastLED.addLeds<LED_TYPE, 32, COLOR_ORDER>(barBotLeds, NUM_BAR_BOT);
-#endif
+  initStrips();
   FastLED.setBrightness(BRIGHTNESS);
   clearAll();
   FastLED.show();
