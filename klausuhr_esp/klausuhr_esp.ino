@@ -95,7 +95,7 @@ const uint8_t PIN_BAR_TOP = 33;                   // Ladebalken oben (40 LED)
 const uint8_t PIN_BAR_BOT = 32;                   // Ladebalken unten (39 LED)
 #endif
 
-constexpr uint8_t NUM_STRIPS = 16;
+constexpr uint8_t NUM_STRIPS = 15;
 constexpr uint16_t PIXELS_PER_STRIP = 40;
 
 #define USE_I2S_DRIVER 1
@@ -173,6 +173,7 @@ inline void clearNach() {
 // Zeigt alle Strips gleichzeitig an
 inline void showAll() {
 #if USE_I2S_DRIVER
+  while (!ledDriver.isReady()) { /* warten */ }
   ledDriver.showPixels();
 #else
   FastLED.show();
@@ -397,8 +398,13 @@ void setup() {
   barTopLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
   barBotLeds = &leds[idx]; idx += PIXELS_PER_STRIP;
 #endif
+  if (idx != NUM_STRIPS * PIXELS_PER_STRIP) {
+    Serial.printf("Index-Fehler: idx=%u  expected=%u\n", idx,
+                  NUM_STRIPS * PIXELS_PER_STRIP);
+    while (true) delay(1000);
+  }
 #if USE_I2S_DRIVER
-  int tmp[] = {2,4,16,17,5,18,19,21,22,23,13,12,14,27,26,0};
+  int tmp[] = {2,4,16,17,5,18,19,21,22,23,13,12,14,27,26};
   memcpy(dataPins, tmp, sizeof(dataPins));
   ledDriver.initled((uint8_t*)leds, dataPins, NUM_STRIPS, PIXELS_PER_STRIP,
                     static_cast<colorarrangment>(ORDER_GRB));
