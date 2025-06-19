@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timer</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg%20fill%3D%22%232b7cff%22%20height%3D%22800px%22%20width%3D%22800px%22%20version%3D%221.1%22%20id%3D%22Layer_1%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20xmlns%3Axlink%3D%22http%3A//www.w3.org/1999/xlink%22%20viewBox%3D%220%200%20455%20455%22%20xml%3Aspace%3D%22preserve%22%3E%3Cpath%20d%3D%22M332.229,90.04l14.238-27.159l-26.57-13.93L305.67,76.087c-19.618-8.465-40.875-13.849-63.17-15.523V30h48.269V0H164.231v30H212.5v30.563c-22.295,1.674-43.553,7.059-63.171,15.523L135.103,48.95l-26.57,13.93l14.239,27.16C67.055,124.958,30,186.897,30,257.5C30,366.576,118.424,455,227.5,455S425,366.576,425,257.5C425,186.896,387.944,124.958,332.229,90.04z%20M355,272.5H212.5V130h30v112.5H355V272.5z%22/%3E%3C/svg%3E">
+    <style>
+        /* Grundlegende Styles für HTML und Body */
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-y: hidden;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: #f2f2f2;
+            color: #000;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 430px;
+            height: 100%;
+            margin: 0 auto;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        /* Überschrift */
+        h1 {
+            text-align: center;
+            margin: 0.5rem 0 2rem;
+            font-size: 3rem;
+        }
+
+        /* Buttons in 3x2 Matrix */
+        .buttons-grid {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .buttons-grid button[data-time] {
+            font-size: 1.4rem;
+        }
+
+        .buttons-grid button {
+            background-color: rgba(128, 128, 128, 0.1);
+            border: 1px solid #000;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            min-height: 16vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #000;
+        }
+
+        .buttons-grid button.active-blue {
+            border-color: #007aff;
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+
+        .buttons-grid button.active-orange {
+            border-color: orange;
+            background-color: rgba(255, 165, 0, 0.2);
+            color: orange;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        /* Container für die finalen Buttons */
+        .finalButtons {
+            position: relative;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        /* Übernehmen-Button */
+        #applyButton {
+            display: block;
+            margin: 0 auto;
+            background-color: #5ab66f;
+            border: 1px solid #5ab66f;
+            border-radius: 8px;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        #applyButton.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* Reset-Button */
+        #resetButton {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #1f1f1f;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        /* Modal-Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+
+        .modal {
+            background-color: #fff;
+            padding: 1rem;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 12px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .modal h2 {
+            margin-top: 0;
+        }
+
+        .modal pre {
+            background-color: #f8f8f8;
+            padding: 0.5rem;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-bottom: 1rem;
+        }
+
+        /* Schließen-Button im Modal */
+        #closeModalButton {
+            background-color: #007aff;
+            display: block;
+            margin: 1rem auto 0;
+            width: auto;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.8rem 1rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 1rem;
+        }
+
+        #closeModalButton:active {
+            transform: scale(0.95);
+        }
+
+        /* iOS-Style Picker für Custom-Zeiten */
+        .custom-picker-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.3);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .picker-wrapper {
+            background-color: #f8f8f8;
+            padding: 1rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            color: #000;
+            overflow: hidden;
+        }
+
+        .picker-container {
+            display: flex;
+            justify-content: space-around;
+            margin: 1.5rem 0;
+        }
+
+        .picker-column-wrapper {
+            position: relative;
+            height: 120px;
+            flex: 1;
+            margin: 0 0.2rem;
+            width: 100%;
+        }
+
+        .picker-scroll {
+            height: 120px;
+            width: 100%;
+            padding: 0 20px;
+            box-sizing: border-box;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .picker-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .picker-item {
+            height: 40px;
+            line-height: 40px;
+            scroll-snap-align: center;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #000;
+        }
+
+        .picker-fade-top,
+        .picker-fade-bottom {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .picker-fade-top {
+            top: 0;
+            background: linear-gradient(to bottom, #f8f8f8, transparent);
+        }
+
+        .picker-fade-bottom {
+            bottom: 0;
+            background: linear-gradient(to top, #f8f8f8, transparent);
+        }
+
+        .picker-center-line {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.06);
+            border-top: 1px solid #ccc;
+            border-bottom: 1px solid #ccc;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        #pickerConfirmButton {
+            background-color: #007aff;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.8rem 1rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 1rem;
+        }
+
+        #pickerConfirmButton:active {
+            transform: scale(0.95);
+        }
+
+        /* Bonus-Picker für Nachteilsausgleich */
+        #bonusPickerOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.3);
+            color: #000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #bonusPickerOverlay .picker-wrapper {
+            background-color: #f8f8f8;
+            padding: 1rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            color: #000;
+        }
+
+        #bonusPickerOverlay h3 {
+            margin-top: 0;
+        }
+
+        #bonusPickerOverlay .picker-container {
+            display: grid;
+            grid-template-columns: repeat(2, auto);
+            justify-items: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        #bonusPickerOverlay .picker-container button {
+            background-color: rgba(128, 128, 128, 0.1);
+            color: #000;
+            border: 1px solid #000;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0.5rem;
+        }
+
+        #bonusPickerOverlay .picker-container button.active {
+            border-color: orange;
+            background-color: rgba(255, 165, 0, 0.2);
+            color: orange;
+        }
+
+        #bonusConfirmButton {
+            background-color: #007aff;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.8rem 1rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 1rem;
+        }
+
+        #bonusConfirmButton:active {
+            transform: scale(0.95);
+        }
+
+        /* Reset-Popup Modal Styles */
+        #resetModalOverlay {
+            display: none;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        #confirmResetButton {
+            background-color: #007aff;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.6rem 0.8rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        #confirmResetButton:active {
+            transform: scale(0.95);
+        }
+
+        #cancelResetButton {
+            background-color: #ff4d4d;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.6rem 0.8rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        #cancelResetButton:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 600px) {
+            .buttons-grid button {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Timer</h1>
+        <div class="buttons-grid">
+            <button data-time="135">135 min</button>
+            <button data-time="180">180 min</button>
+            <button data-time="90">90 min</button>
+            <button data-time="45">45 min</button>
+            <button id="customButton"><span>Custom</span></button>
+            <button id="nachteilsausgleichButton"><span>Nachteilsausgleich</span></button>
+        </div>
+        <div class="finalButtons">
+            <button id="applyButton" class="disabled">Übernehmen</button>
+            <button id="resetButton" data-initial-transform="translateY(-50%)">Reset</button>
+        </div>
+    </div>
+
+    <!-- Modal für Übernehmen -->
+    <div class="modal-overlay" id="modalOverlay" style="display: none;">
+        <div class="modal">
+            <h2>Ausgewählte Werte</h2>
+            <p>Prüfungsdauer: <span id="pruefungsdauerDisplay">-</span> Minuten</p>
+            <p>Nachteilsausgleich: <span id="nachteilsausgleichDisplay">-</span> Minuten</p>
+            <button id="closeModalButton">Schließen</button>
+        </div>
+    </div>
+
+    <!-- Custom iOS Style Picker für Custom-Zeiten -->
+    <div class="custom-picker-overlay" id="customPickerOverlay">
+        <div class="picker-wrapper" onclick="event.stopPropagation();">
+            <h3>Zeit wählen</h3>
+            <div class="picker-container">
+                <div class="picker-column-wrapper">
+                    <div class="picker-scroll" id="hoursScroll">
+                        <!-- Zahlen werden dynamisch eingefügt -->
+                    </div>
+                    <div class="picker-center-line"></div>
+                    <div class="picker-fade-top"></div>
+                    <div class="picker-fade-bottom"></div>
+                </div>
+                <div class="picker-column-wrapper">
+                    <div class="picker-scroll" id="minutesScroll">
+                        <!-- Zahlen werden dynamisch eingefügt -->
+                    </div>
+                    <div class="picker-center-line"></div>
+                    <div class="picker-fade-top"></div>
+                    <div class="picker-fade-bottom"></div>
+                </div>
+            </div>
+            <button id="pickerConfirmButton">Bestätigen</button>
+        </div>
+    </div>
+
+    <!-- Bonus-Picker für Nachteilsausgleich -->
+    <div class="custom-picker-overlay" id="bonusPickerOverlay">
+        <div class="picker-wrapper" onclick="event.stopPropagation();">
+            <h3>Prozent wählen</h3>
+            <div class="picker-container">
+                <button class="bonusOption" data-percentage="10">10%</button>
+                <button class="bonusOption" data-percentage="15">15%</button>
+                <button class="bonusOption" data-percentage="20">20%</button>
+                <button class="bonusOption" data-percentage="25">25%</button>
+            </div>
+            <button id="bonusConfirmButton">Bestätigen</button>
+        </div>
+    </div>
+
+    <!-- Reset-Popup Modal -->
+    <div class="modal-overlay" id="resetModalOverlay" style="display: none;">
+        <div class="modal" id="resetModal">
+            <h2>Reset Timer</h2>
+            <p>Wollen Sie wirklich den Timer auf die Uhrzeit zurücksetzen?</p>
+            <div class="modal-buttons">
+                <button id="confirmResetButton">Reset</button>
+                <button id="cancelResetButton">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animation für Button-Klicks
+        function animateButton(btn) {
+            const initialTransform = btn.dataset.initialTransform || '';
+            btn.style.transform = (initialTransform ? initialTransform + ' ' : '') + 'scale(0.95)';
+            setTimeout(() => {
+                btn.style.transform = (initialTransform ? initialTransform + ' ' : '') + 'scale(1)';
+            }, 150);
+        }
+
+        /* Globale Variablen & Referenzen */
+        let selectedTimeInSeconds = 0;
+        let selectedBonusTimeInSeconds = 0;
+        let selectedTimeInMinutes = 0;
+        let selectedBonusTimeInMinutes = 0;
+        let currentMode = null;  // "custom" oder "nachteil"
+        let activeButton = null;
+        let lastConfirmedButton = null; // zuletzt bestätigter Button
+        let tempBackupButton = null;    // temporäre Sicherung
+        let selectedBonusPercentage = 0;
+
+        // Referenzen für die Hauptbuttons
+        const predefinedButtons = document.querySelectorAll('.buttons-grid button[data-time]');
+        const customButton = document.getElementById('customButton');
+        const nachteilsausgleichButton = document.getElementById('nachteilsausgleichButton');
+        const applyButton = document.getElementById('applyButton');
+        const resetButton = document.getElementById('resetButton');
+
+        // Modal-Referenzen
+        const modalOverlay = document.getElementById('modalOverlay');
+        const pruefungsdauerDisplay = document.getElementById('pruefungsdauerDisplay');
+        const nachteilsausgleichDisplay = document.getElementById('nachteilsausgleichDisplay');
+        const closeModalButton = document.getElementById('closeModalButton');
+
+        // Custom Picker Referenzen
+        const customPickerOverlay = document.getElementById('customPickerOverlay');
+        const hoursScroll = document.getElementById('hoursScroll');
+        const minutesScroll = document.getElementById('minutesScroll');
+        const pickerConfirmButton = document.getElementById('pickerConfirmButton');
+
+        // Bonus Picker Referenzen
+        const bonusPickerOverlay = document.getElementById('bonusPickerOverlay');
+        const bonusConfirmButton = document.getElementById('bonusConfirmButton');
+        const bonusOptions = document.querySelectorAll('.bonusOption');
+
+        // Reset Modal Referenzen
+        const resetModalOverlay = document.getElementById('resetModalOverlay');
+        const confirmResetButton = document.getElementById('confirmResetButton');
+        const cancelResetButton = document.getElementById('cancelResetButton');
+
+        const ITEM_HEIGHT = 40;
+
+        /* Zahlen in Picker-Spalten einfügen */
+        function populatePicker(scrollEl, maxValue) {
+            const emptyTop = document.createElement('div');
+            emptyTop.className = 'picker-item';
+            emptyTop.textContent = "";
+            scrollEl.appendChild(emptyTop);
+            for (let i = 0; i <= maxValue; i++) {
+                const item = document.createElement('div');
+                item.className = 'picker-item';
+                item.textContent = i < 10 ? '0' + i : i;
+                scrollEl.appendChild(item);
+            }
+            const emptyBottom = document.createElement('div');
+            emptyBottom.className = 'picker-item';
+            emptyBottom.textContent = "";
+            scrollEl.appendChild(emptyBottom);
+        }
+        populatePicker(hoursScroll, 23);
+        populatePicker(minutesScroll, 59);
+        [hoursScroll, minutesScroll].forEach(el => { el.scrollTop = ITEM_HEIGHT; });
+
+        /* Diskretes Scrollen per Mausrad */
+        function addDiscreteScroll(scrollEl) {
+            scrollEl.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? ITEM_HEIGHT : -ITEM_HEIGHT;
+                scrollEl.scrollBy({ top: delta, behavior: "smooth" });
+            });
+        }
+        addDiscreteScroll(hoursScroll);
+        addDiscreteScroll(minutesScroll);
+
+        /* Ermitteln des selektierten Werts im Picker */
+        function getSelectedValue(scrollEl) {
+            const offset = ITEM_HEIGHT * 0.5;
+            const index = Math.round((scrollEl.scrollTop + offset) / ITEM_HEIGHT) - 1;
+            return Math.max(0, index);
+        }
+
+        /* Picker öffnen/schließen (Custom) */
+        function openPicker() {
+            customPickerOverlay.style.display = 'flex';
+            hoursScroll.scrollTo({ top: 0, behavior: 'auto' });
+            minutesScroll.scrollTo({ top: 0, behavior: 'auto' });
+        }
+        function closePicker() {
+            customPickerOverlay.style.display = 'none';
+        }
+
+        /* Bonus-Picker öffnen/schließen */
+        function openBonusPicker() {
+            bonusPickerOverlay.style.display = 'flex';
+            bonusOptions.forEach(btn => btn.classList.remove('active'));
+            selectedBonusPercentage = 0;
+        }
+        function closeBonusPicker() {
+            bonusPickerOverlay.style.display = 'none';
+        }
+
+        // Schließen des Custom-Pickers bei Klick außerhalb der Box
+        customPickerOverlay.addEventListener("click", function (e) {
+            if (!e.target.closest('.picker-wrapper')) {
+                if (currentMode === 'custom') {
+                    if (tempBackupButton) {
+                        customButton.classList.remove('active-blue');
+                        tempBackupButton.classList.add('active-blue');
+                        activeButton = tempBackupButton;
+                    } else {
+                        customButton.classList.remove('active-blue');
+                    }
+                } else if (currentMode === 'nachteil') {
+                    if (tempBackupButton) {
+                        nachteilsausgleichButton.classList.remove('active-orange');
+                        tempBackupButton.classList.add('active-blue');
+                        activeButton = tempBackupButton;
+                    } else {
+                        nachteilsausgleichButton.classList.remove('active-orange');
+                    }
+                }
+                currentMode = null;
+                tempBackupButton = null;
+                closePicker();
+            }
+        });
+
+        // Schließen des Bonus-Pickers bei Klick außerhalb der Box
+        bonusPickerOverlay.addEventListener("click", function (e) {
+            if (!e.target.closest('.picker-wrapper')) {
+                if (currentMode === 'nachteil') {
+                    if (tempBackupButton) {
+                        nachteilsausgleichButton.classList.remove('active-orange');
+                        tempBackupButton.classList.add('active-blue');
+                        activeButton = tempBackupButton;
+                    } else {
+                        nachteilsausgleichButton.classList.remove('active-orange');
+                    }
+                }
+                currentMode = null;
+                tempBackupButton = null;
+                closeBonusPicker();
+            }
+        });
+
+        /* Predefinierte Zeit-Buttons */
+        predefinedButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                animateButton(btn);
+                predefinedButtons.forEach(b => b.classList.remove('active-blue'));
+                customButton.classList.remove('active-blue');
+                btn.classList.add('active-blue');
+                activeButton = btn;
+                lastConfirmedButton = btn;
+                selectedTimeInSeconds = parseInt(btn.getAttribute('data-time'), 10) * 60;
+                selectedTimeInMinutes = parseInt(btn.getAttribute('data-time'), 10);
+                applyButton.classList.remove('disabled');
+            });
+        });
+
+        /* Custom-Button */
+        customButton.addEventListener('click', () => {
+            animateButton(customButton);
+            tempBackupButton = lastConfirmedButton;
+            predefinedButtons.forEach(b => b.classList.remove('active-blue'));
+            customButton.classList.add('active-blue');
+            activeButton = customButton;
+            currentMode = 'custom';
+            openPicker();
+        });
+
+        /* Nachteilsausgleich-Button */
+        nachteilsausgleichButton.addEventListener('click', () => {
+            animateButton(nachteilsausgleichButton);
+            if (nachteilsausgleichButton.classList.contains('active-orange')) {
+                nachteilsausgleichButton.classList.remove('active-orange');
+                selectedBonusTimeInSeconds = 0;
+                selectedBonusTimeInMinutes = 0;
+                selectedBonusPercentage = 0;
+                nachteilsausgleichButton.innerHTML = '<span>Nachteilsausgleich</span>';
+            } else {
+                tempBackupButton = lastConfirmedButton;
+                nachteilsausgleichButton.classList.add('active-orange');
+                currentMode = 'nachteil';
+                openBonusPicker();
+                activeButton = nachteilsausgleichButton;
+            }
+        });
+
+        /* Bonus-Optionen im Bonus-Picker */
+        bonusOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                bonusOptions.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedBonusPercentage = parseInt(btn.getAttribute('data-percentage'), 10);
+            });
+        });
+
+        /* Picker-Bestätigung für Custom-Zeit */
+        pickerConfirmButton.addEventListener('click', () => {
+            const h = getSelectedValue(hoursScroll);
+            const m = getSelectedValue(minutesScroll);
+            if (h === 0 && m === 0) {
+                if (currentMode === 'custom') {
+                    customButton.classList.remove('active-blue');
+                } else if (currentMode === 'nachteil') {
+                    nachteilsausgleichButton.classList.remove('active-orange');
+                }
+                if (tempBackupButton) {
+                    tempBackupButton.classList.add('active-blue');
+                    activeButton = tempBackupButton;
+                } else {
+                    activeButton = null;
+                }
+                currentMode = null;
+                tempBackupButton = null;
+                closePicker();
+                return;
+            }
+            if (currentMode === 'custom') {
+                selectedTimeInSeconds = h * 3600 + m * 60;
+                selectedTimeInMinutes = h * 60 + m;
+                customButton.innerHTML = '<span style="font-size:0.9rem;">Custom</span><br>' +
+                    `<span style="font-size:1.4rem;">${h}h ${m}m</span>`;
+                applyButton.classList.remove('disabled');
+                lastConfirmedButton = customButton;
+            }
+            currentMode = null;
+            tempBackupButton = null;
+            closePicker();
+        });
+
+        /* Bonus-Picker Bestätigung */
+        bonusConfirmButton.addEventListener('click', () => {
+            if (selectedBonusPercentage === 0) {
+                nachteilsausgleichButton.classList.remove('active-orange');
+                if (tempBackupButton) {
+                    tempBackupButton.classList.add('active-blue');
+                    activeButton = tempBackupButton;
+                }
+                currentMode = null;
+                tempBackupButton = null;
+                closeBonusPicker();
+                return;
+            }
+            nachteilsausgleichButton.innerHTML = '<span style="font-size:0.9rem;">Nachteilsausgleich</span><br>' +
+                `<span style="font-size:1.4rem;">+ ${selectedBonusPercentage}%</span>`;
+            currentMode = null;
+            tempBackupButton = null;
+            closeBonusPicker();
+        });
+
+        /* Übernehmen: Modal anzeigen und Daten an den Server senden */
+        applyButton.addEventListener('click', () => {
+            animateButton(applyButton);
+            modalOverlay.style.display = 'flex';
+            selectedBonusTimeInMinutes = (selectedBonusPercentage / 100) * selectedTimeInMinutes; // Prozent in Minuten umrechnen
+            selectedBonusTimeInSeconds = selectedBonusTimeInMinutes * 60;
+            pruefungsdauerDisplay.textContent = selectedTimeInMinutes;
+            nachteilsausgleichDisplay.textContent = selectedBonusTimeInMinutes;
+            const url = `/executeFunction?time=${selectedTimeInSeconds}&bonus=${selectedBonusTimeInSeconds}`;
+            fetch(url)
+                .then(response => response.text())
+                .then(result => console.log("Antwort vom ESP:", result))
+                .catch(err => console.error("Fehler beim Senden der Daten an den ESP:", err));
+
+            // Auswahlzustände zurücksetzen
+            predefinedButtons.forEach(b => b.classList.remove('active-blue'));
+            customButton.classList.remove('active-blue');
+            nachteilsausgleichButton.classList.remove('active-orange');
+            customButton.innerHTML = '<span>Custom</span>';
+            nachteilsausgleichButton.innerHTML = '<span>Nachteilsausgleich</span>';
+            selectedTimeInSeconds = 0;
+            selectedBonusTimeInSeconds = 0;
+            selectedTimeInMinutes = 0;
+            selectedBonusTimeInMinutes = 0;
+            applyButton.classList.add('disabled');
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            animateButton(closeModalButton);
+            modalOverlay.style.display = 'none';
+        });
+
+        modalOverlay.addEventListener('click', () => {
+            animateButton(closeModalButton);
+            modalOverlay.style.display = 'none';
+        });
+
+        /* Reset-Button: Zeigt das Reset-Popup an */
+        resetButton.addEventListener('click', () => {
+            animateButton(resetButton);
+            resetModalOverlay.style.display = 'flex';
+        });
+
+        resetModalOverlay.addEventListener('click', (e) => {
+            if (!e.target.closest('#resetModal')) {
+                resetModalOverlay.style.display = 'none';
+            }
+        });
+
+        confirmResetButton.addEventListener('click', () => {
+            const resetUrl = `/resetTimer`;
+            fetch(resetUrl)
+                .then(response => response.text())
+                .then(result => console.log("Reset-Antwort vom ESP:", result))
+                .catch(err => console.error("Fehler beim Senden der Reset-Daten:", err));
+            resetModalOverlay.style.display = 'none';
+        });
+
+        cancelResetButton.addEventListener('click', () => {
+            resetModalOverlay.style.display = 'none';
+        });
+
+        // Initial: Übernehmen-Button deaktiviert
+        applyButton.classList.add('disabled');
+
+        // LED-Test via Browser-Konsole: runLedTest()
+        window.runLedTest = () => fetch('/led-post');
+    </script>
+</body>
+
+</html>
